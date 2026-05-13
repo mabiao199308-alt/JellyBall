@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>皮筋弹射球</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="page-wrap">
+      <section class="phone-shell" id="gameShell">
+        <div class="hud">
+          <div class="hud-meter" id="meterDisplay">米数：0.0</div>
+        </div>
+        <div class="fps-display" id="fpsDisplay">FPS: --</div>
+        <canvas id="gameCanvas"></canvas>
+      </section>
+
+      <aside class="debug-panel" id="debugPanel">
+        <h2>调试面板</h2>
+        <div class="debug-panel__body" id="debugPanelBody"></div>
+        <div class="debug-panel__actions">
+          <button id="toggleAdvancedBtn" type="button">显示全部</button>
+          <button id="saveCfgBtn" type="button">保存参数</button>
+          <button id="defaultCfgBtn" type="button">恢复默认</button>
+        </div>
+        <p class="debug-panel__status" id="cfgStatus">参数实时生效，点击保存写入本地。</p>
+      </aside>
+    </main>
+
+    <script src="./ball_visual.js"></script>
+    <script src="./death_fx.js"></script>
+    <script src="./game.js"></script>
+  </body>
+  </html>

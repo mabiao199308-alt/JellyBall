@@ -32,8 +32,16 @@ const LOOK_DIR_SMOOTH = 12;
 const JELLY_DEFORM_DECAY = 3.8;
 const JELLY_WOBBLE_DECAY = 3.2;
 const JELLY_OSC_BASE = 10;
-const JELLY_NEAR_MAX_WOBBLE_RATIO = 0.94;
-const JELLY_NEAR_MAX_WOBBLE_DELAY_PAD = 0.08;
+const JELLY_HANG_IDLE_ENTER_SPEED = 24;
+const JELLY_HANG_IDLE_EXIT_SPEED = 42;
+const JELLY_HANG_IDLE_ENTER_LEN_EPS = 4;
+const JELLY_HANG_IDLE_EXIT_LEN_EPS = 8;
+const JELLY_HANG_IDLE_TETHER_ENTER_LEN_EPS = 14;
+const JELLY_HANG_IDLE_TETHER_EXIT_LEN_EPS = 24;
+const JELLY_HANG_IDLE_SETTLE = 14;
+const JELLY_TETHER_DEFORM_DEADZONE_PX = 3;
+const JELLY_TETHER_SPEED_DEADZONE = 18;
+const JELLY_TETHER_RADIAL_DEADZONE = 12;
 const TRACK_ENABLED = true;
 const TRACK_PIN_SPEED = 90;
 const TRACK_EXCLUSIVE_OPENING = false;
@@ -107,15 +115,21 @@ const defaultCfg = {
   anchorSpacingMin: 120,
   anchorSpacingMax: 185,
   anchorSidePadding: 70,
-  tetherJellyHoldBoost: 1,
-  tetherJellyHoldWobbleBoost: 1,
-  hookWobbleDuration: 0.18,
+  aimJellyCurve: 0.52,
+  aimJellyMaxDeform: 0.92,
+  aimJellyFullStart: 0.72,
+  aimJellyNearFullBoost: 0.22,
+  aimJellyHoldWobble: 0.26,
+  tetherJellyDeformBoost: 1,
 };
 
 const jellyParamDefs = [
-  { key: "tetherJellyHoldBoost", label: "挂绳持续形变倍率", min: 0.2, max: 4, step: 0.01 },
-  { key: "tetherJellyHoldWobbleBoost", label: "拉满持续晃动强度(仅拉满)", min: 0.2, max: 3.5, step: 0.01 },
-  { key: "hookWobbleDuration", label: "挂点晃动时长(秒)", min: 0.05, max: 0.6, step: 0.01 },
+  { key: "aimJellyCurve", label: "蓄力形变曲线(越小越明显)", min: 0.25, max: 1.2, step: 0.01 },
+  { key: "aimJellyMaxDeform", label: "蓄力最大形变", min: 0.3, max: 1, step: 0.01 },
+  { key: "aimJellyFullStart", label: "拉满判定起点", min: 0.45, max: 0.95, step: 0.01 },
+  { key: "aimJellyNearFullBoost", label: "拉满额外形变", min: 0, max: 0.6, step: 0.01 },
+  { key: "aimJellyHoldWobble", label: "拉满按住晃动", min: 0, max: 0.6, step: 0.01 },
+  { key: "tetherJellyDeformBoost", label: "挂绳持续形变倍率", min: 0.2, max: 4, step: 0.01 },
 ];
 
 const paramDefs = [
@@ -221,6 +235,8 @@ const world = {
   lookDir: { x: 0, y: 0 },
   jellyDeform: 0,
   jellyWobble: 0,
+  jellyHangIdleBlend: 0,
+  jellyHangIdleLocked: false,
   jellyPhase: 0,
   timeSec: 0,
   state: "aiming", // aiming | launched | tethered | dying | gameover
@@ -235,8 +251,6 @@ const world = {
   lastTetherSnapSec: -999,
   lastHookSec: -999,
   tetheredSinceSec: -999,
-  hookWobbleTimer: 0,
-  hookWobbleStrength: 0,
   launchGraceTimer: 0,
   hasHookedSinceLaunch: false,
   deathFx: createEmptyDeathFx(),
@@ -890,6 +904,8 @@ function resetRun() {
   world.lookDir.y = 0;
   world.jellyDeform = 0;
   world.jellyWobble = 0;
+  world.jellyHangIdleBlend = 0;
+  world.jellyHangIdleLocked = false;
   world.jellyPhase = 0;
   world.timeSec = 0;
   world.redAnchorRespawns = [];
@@ -902,8 +918,6 @@ function resetRun() {
   world.lastTetherSnapSec = -999;
   world.lastHookSec = -999;
   world.tetheredSinceSec = -999;
-  world.hookWobbleTimer = 0;
-  world.hookWobbleStrength = 0;
   world.launchGraceTimer = 0;
   world.hasHookedSinceLaunch = false;
   world.deathFx = createEmptyDeathFx();
@@ -928,13 +942,66 @@ function updateJellyState(dt) {
   world.jellyWobble *= wobbleDamp;
   world.jellyPhase += dt * (JELLY_OSC_BASE + world.jellyWobble * 20);
 
+  let canCheckHangingIdle = false;
+  let hangingIdleLenError = Infinity;
+  let hangingIdleEnterLenEps = JELLY_HANG_IDLE_ENTER_LEN_EPS;
+  let hangingIdleExitLenEps = JELLY_HANG_IDLE_EXIT_LEN_EPS;
+  let hangingIdleSpeed = Infinity;
+  if ((world.state === "aiming" || world.state === "tethered") && !world.dragging && world.activeAnchor) {
+    canCheckHangingIdle = true;
+    const dx = world.ball.x - world.activeAnchor.x;
+    const dy = world.ball.y - world.activeAnchor.y;
+    const dist = Math.hypot(dx, dy);
+    hangingIdleSpeed = Math.hypot(world.ball.vx, world.ball.vy);
+    if (world.state === "tethered") {
+      // tethered 的静止平衡长度不是 tetherRestLength，而是受重力拉长后的平衡点
+      const springEqOffset = cfg.gravity / Math.max(1, cfg.springK);
+      const targetLen = clamp(
+        cfg.tetherRestLength + springEqOffset,
+        cfg.tetherRestLength,
+        cfg.tetherMaxLength,
+      );
+      hangingIdleLenError = Math.abs(dist - targetLen);
+      hangingIdleEnterLenEps = JELLY_HANG_IDLE_TETHER_ENTER_LEN_EPS;
+      hangingIdleExitLenEps = JELLY_HANG_IDLE_TETHER_EXIT_LEN_EPS;
+    } else {
+      hangingIdleLenError = Math.abs(dist - cfg.restLength);
+      hangingIdleEnterLenEps = JELLY_HANG_IDLE_ENTER_LEN_EPS;
+      hangingIdleExitLenEps = JELLY_HANG_IDLE_EXIT_LEN_EPS;
+    }
+  }
+
+  if (!canCheckHangingIdle) {
+    world.jellyHangIdleLocked = false;
+  } else if (world.jellyHangIdleLocked) {
+    const shouldExitIdle =
+      hangingIdleSpeed > JELLY_HANG_IDLE_EXIT_SPEED || hangingIdleLenError > hangingIdleExitLenEps;
+    if (shouldExitIdle) world.jellyHangIdleLocked = false;
+  } else {
+    const shouldEnterIdle =
+      hangingIdleSpeed < JELLY_HANG_IDLE_ENTER_SPEED && hangingIdleLenError < hangingIdleEnterLenEps;
+    if (shouldEnterIdle) world.jellyHangIdleLocked = true;
+  }
+
+  const isHangingIdle = world.jellyHangIdleLocked;
+  const idleBlendTarget = isHangingIdle ? 1 : 0;
+  const idleBlendAlpha = 1 - Math.exp(-10 * dt);
+  world.jellyHangIdleBlend += (idleBlendTarget - world.jellyHangIdleBlend) * idleBlendAlpha;
+  const hangIdleBlend = clamp01(world.jellyHangIdleBlend);
+  const activeFactor = 1 - hangIdleBlend;
+
   if (world.dragging && world.state === "aiming" && world.activeAnchor) {
     const dx = world.ball.x - world.activeAnchor.x;
     const dy = world.ball.y - world.activeAnchor.y;
     const dist = Math.hypot(dx, dy) || 0.0001;
     const stretchRatio = Math.max(0, Math.min(1, dist / Math.max(1, cfg.maxStretch)));
-    const aimDeform = Math.pow(stretchRatio, 0.72) * 0.95;
+    const curve = Math.max(0.2, cfg.aimJellyCurve);
+    const fullStart = clamp01(cfg.aimJellyFullStart);
+    const nearFull = fullStart >= 0.999 ? 0 : clamp01((stretchRatio - fullStart) / (1 - fullStart));
+    const aimDeform = Math.min(1, Math.pow(stretchRatio, curve) * cfg.aimJellyMaxDeform + nearFull * cfg.aimJellyNearFullBoost);
+    const aimHoldWobble = nearFull * cfg.aimJellyHoldWobble;
     if (aimDeform > world.jellyDeform) world.jellyDeform = aimDeform;
+    if (aimHoldWobble > world.jellyWobble) world.jellyWobble = aimHoldWobble;
   }
 
   if (world.state === "launched") {
@@ -949,34 +1016,31 @@ function updateJellyState(dt) {
     const dx = world.ball.x - world.activeAnchor.x;
     const dy = world.ball.y - world.activeAnchor.y;
     const dist = Math.hypot(dx, dy) || 0.0001;
-    const stretchRatio = Math.max(0, Math.min(1, Math.abs(dist - cfg.tetherRestLength) / Math.max(1, cfg.tetherMaxLength)));
-    const speedRatio = Math.max(0, Math.min(1, Math.hypot(world.ball.vx, world.ball.vy) / 900));
+    const springEqOffset = cfg.gravity / Math.max(1, cfg.springK);
+    const equilibriumLen = clamp(
+      cfg.tetherRestLength + springEqOffset,
+      cfg.tetherRestLength,
+      cfg.tetherMaxLength,
+    );
+    const lenDelta = Math.abs(dist - equilibriumLen);
+    const deformLenDelta = Math.max(0, lenDelta - JELLY_TETHER_DEFORM_DEADZONE_PX);
+    const stretchRatio = clamp01(deformLenDelta / Math.max(1, cfg.tetherMaxLength - equilibriumLen));
+    const speed = Math.hypot(world.ball.vx, world.ball.vy);
+    const speedRatio = clamp01(Math.max(0, speed - JELLY_TETHER_SPEED_DEADZONE) / 900);
     const radialSpeed = Math.abs((world.ball.vx * dx + world.ball.vy * dy) / dist);
-    const radialRatio = Math.max(0, Math.min(1, radialSpeed / 760));
+    const radialRatio = clamp01(Math.max(0, radialSpeed - JELLY_TETHER_RADIAL_DEADZONE) / 760);
     const tensionRatio = Math.pow(stretchRatio, 0.62);
     // 先算基础形变，再由倍率做“可见增益”，避免滑杆变化不明显
     const holdDeformBase = Math.min(1, tensionRatio * 0.84 + radialRatio * 0.2 + speedRatio * 0.08);
-    const holdDeform = Math.min(1, holdDeformBase * (0.3 + cfg.tetherJellyHoldBoost * 0.95));
+    const holdDeform = Math.min(1, holdDeformBase * (0.3 + cfg.tetherJellyDeformBoost * 0.95) * activeFactor);
     if (holdDeform > world.jellyDeform) world.jellyDeform = holdDeform;
-
-    // 仅在“挂点短抖结束后 + 真正接近拉满”时，给一个持续小晃动
-    const pullRatio = clamp01(dist / Math.max(1, cfg.tetherMaxLength));
-    const timeSinceHook = world.timeSec - world.tetheredSinceSec;
-    const minDelay = cfg.hookWobbleDuration + JELLY_NEAR_MAX_WOBBLE_DELAY_PAD;
-    if (pullRatio > JELLY_NEAR_MAX_WOBBLE_RATIO && timeSinceHook > minDelay) {
-      const nearMax = clamp01((pullRatio - JELLY_NEAR_MAX_WOBBLE_RATIO) / (1 - JELLY_NEAR_MAX_WOBBLE_RATIO));
-      const sustainWobble = Math.min(0.7, (0.05 + nearMax * 0.22) * cfg.tetherJellyHoldWobbleBoost);
-      if (sustainWobble > world.jellyWobble) world.jellyWobble = sustainWobble;
-      world.jellyPhase += nearMax * 0.09;
-    }
   }
 
-  if (world.hookWobbleTimer > 0) {
-    world.hookWobbleTimer = Math.max(0, world.hookWobbleTimer - dt);
-    const duration = Math.max(0.001, cfg.hookWobbleDuration);
-    const ratio = clamp01(world.hookWobbleTimer / duration);
-    const timedWobble = world.hookWobbleStrength * ratio;
-    if (timedWobble > world.jellyWobble) world.jellyWobble = timedWobble;
+  // 统一“挂在钉子上的静止态”观感：初始静止与挂钩后静止都收敛到同一基线
+  if (hangIdleBlend > 0.001) {
+    const settleAlpha = (1 - Math.exp(-JELLY_HANG_IDLE_SETTLE * dt)) * hangIdleBlend;
+    world.jellyDeform += (0 - world.jellyDeform) * settleAlpha;
+    world.jellyWobble += (0 - world.jellyWobble) * settleAlpha;
   }
 
   if (world.jellyDeform < 0.003) world.jellyDeform = 0;
@@ -1134,13 +1198,9 @@ function hookToAnchor(anchor) {
   const hookImpact = Math.max(Math.abs(radialSpeed), Math.abs(tangentialSpeed) * 0.55);
   const hookImpactRatio = Math.max(0, Math.min(1, hookImpact / 1200));
   const hookDeform = 0.38 + hookImpactRatio * 0.62;
-  const hookWobbleBase = 0.34 + hookImpactRatio * 0.58;
-  const hookWobble = Math.min(1, hookWobbleBase);
-  kickJelly(hookDeform, hookWobble);
+  kickJelly(hookDeform, 0);
   world.lastHookSec = world.timeSec;
   world.tetheredSinceSec = world.timeSec;
-  world.hookWobbleStrength = hookWobble;
-  world.hookWobbleTimer = Math.max(0.001, cfg.hookWobbleDuration);
 
   world.activeAnchor = anchor;
   world.state = "tethered";
@@ -2251,7 +2311,29 @@ function drawBall() {
   if (world.state === "dying") return;
   const sy = toScreenY(world.ball.y);
   const sx = toScreenX(world.ball.x);
-  const angle = getBallRenderAngle();
+  let angle = getBallRenderAngle();
+  const idleAngleBlend = clamp01((world.jellyHangIdleBlend - 0.55) / 0.45);
+  angle = lerp(angle, 0, idleAngleBlend);
+  let renderDeform = world.jellyDeform;
+  let renderWobble = Math.sin(world.jellyPhase) * world.jellyWobble;
+  const idleBlend = clamp01(world.jellyHangIdleBlend);
+  const activeBlend = 1 - idleBlend;
+  renderDeform *= 1 - idleBlend * 0.88;
+  renderWobble *= activeBlend * activeBlend;
+
+  // 让“蓄力拉满按住”在渲染层有更强的可见形变，避免体感不明显
+  if (world.dragging && world.state === "aiming" && world.activeAnchor) {
+    const dx = world.ball.x - world.activeAnchor.x;
+    const dy = world.ball.y - world.activeAnchor.y;
+    const dist = Math.hypot(dx, dy) || 0.0001;
+    const stretchRatio = clamp01(dist / Math.max(1, cfg.maxStretch));
+    const fullStart = clamp01(cfg.aimJellyFullStart);
+    const nearFull = fullStart >= 0.999 ? 0 : clamp01((stretchRatio - fullStart) / (1 - fullStart));
+    const deformBonus = nearFull * (0.18 + cfg.aimJellyNearFullBoost * 0.95);
+    const wobbleBonus = nearFull * (0.08 + cfg.aimJellyHoldWobble * 0.55);
+    renderDeform = clamp01(renderDeform + deformBonus);
+    renderWobble += Math.sin(world.jellyPhase * 1.35) * wobbleBonus;
+  }
 
   window.BallVisual.drawJellyBall(ctx, {
     x: sx,
@@ -2260,8 +2342,8 @@ function drawBall() {
     baseRadius: cfg.ballRadius,
     speed: Math.hypot(world.ball.vx, world.ball.vy),
     time: world.lastTime,
-    deformAmount: world.jellyDeform,
-    wobbleOffset: Math.sin(world.jellyPhase) * world.jellyWobble,
+    deformAmount: renderDeform,
+    wobbleOffset: renderWobble,
     lookDirX: world.lookDir.x,
     lookDirY: world.lookDir.y,
     faceMode: world.state === "launched" ? "flight_squint" : "normal",

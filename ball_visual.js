@@ -48,6 +48,13 @@ const defaultBallVisualCfg = {
   "pupilHighlightX": 0.18,
   "pupilHighlightY": -0.22,
   "pupilHighlightRadius": 0.04,
+  "shapeStyle": "squircle",
+  "shapeRoundness": 2.8,
+  "softShellSegments": 24,
+  "softShellHardness": 0.62,
+  "softShellMaxDeform": 0.34,
+  "softShellRipple": 0.09,
+  "softShellJiggle": 0.11,
   "colorA": "#f4ff9a",
   "colorB": "#d8f55d",
   "colorC": "#acd726",
@@ -80,18 +87,72 @@ function getVisualRadius(baseRadius, cfg) {
   return Math.max(baseRadius * cfg.radiusScale, cfg.minRadius);
 }
 
-function drawJellyBodyPath(ctx, r, squash = 0, wobble = 0, cfg = defaultBallVisualCfg) {
-  // 受力时应表现为“拉长”而非“变宽”：沿局部 Y 轴拉伸，X 轴轻微收窄
-  const safeSquash = Math.min(Math.max(0, squash), 0.45);
+function drawSoftClosedPath(ctx, points) {
+  if (!points || points.length < 3) return;
+  const first = points[0];
+  const last = points[points.length - 1];
+  const startX = (last.x + first.x) * 0.5;
+  const startY = (last.y + first.y) * 0.5;
+
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const next = points[(i + 1) % points.length];
+    const midX = (p.x + next.x) * 0.5;
+    const midY = (p.y + next.y) * 0.5;
+    ctx.quadraticCurveTo(p.x, p.y, midX, midY);
+  }
+  ctx.closePath();
+}
+
+function drawJellyBodyPath(ctx, r, squash = 0, wobble = 0, cfg = defaultBallVisualCfg, time = 0) {
+  // 偏“充气球”风格：边缘有软体感，但整体保持更硬挺
+  const safeSquash = Math.min(Math.max(0, squash), 0.72);
   const sx = Math.max(cfg.stretchMinWidthScale, 1 - safeSquash * cfg.stretchNarrowStrength);
   const sy = 1 + safeSquash * cfg.stretchLengthStrength;
-  ctx.beginPath();
-  ctx.moveTo(0, -r * 0.98 * sy);
-  ctx.bezierCurveTo(r * 0.74 * sx, -r * (1.04 + wobble * 0.08), r * (1.16 + wobble * 0.12), -r * 0.34 * sy, r * 1.02 * sx, r * 0.16 * sy);
-  ctx.bezierCurveTo(r * 0.96 * sx, r * (0.8 + wobble * 0.08), r * 0.5 * sx, r * 1.1 * sy, 0, r * (1.02 + wobble * 0.12));
-  ctx.bezierCurveTo(-r * 0.48 * sx, r * (1.12 + wobble * 0.12), -r * 1.02 * sx, r * (0.82 + wobble * 0.08), -r * 1.06 * sx, r * 0.18 * sy);
-  ctx.bezierCurveTo(-r * (1.18 + wobble * 0.08), -r * 0.38 * sy, -r * 0.7 * sx, -r * 1.02 * sy, 0, -r * 0.98 * sy);
-  ctx.closePath();
+  const segmentCount = Math.max(16, Math.min(48, Math.round(cfg.softShellSegments || 24)));
+  const hardness = clamp01(cfg.softShellHardness);
+  const softness = 1 - hardness;
+  const maxDeform = Math.max(0.02, Math.min(0.45, Number(cfg.softShellMaxDeform) || 0.24));
+  const ripple = Math.max(0, Number(cfg.softShellRipple) || 0.055);
+  const jiggle = Math.max(0, Number(cfg.softShellJiggle) || 0.05);
+  const shapeStyle = typeof cfg.shapeStyle === "string" ? cfg.shapeStyle : "round";
+  const shapeRoundness = Math.max(2.1, Math.min(8, Number(cfg.shapeRoundness) || 3.8));
+  const wobbleAbs = Math.min(1, Math.abs(wobble));
+  const deformRatio = clamp01(safeSquash / Math.max(0.001, cfg.squashStrength));
+  const shellAmt = Math.min(maxDeform, deformRatio * (0.22 + softness * 0.34) + wobbleAbs * jiggle * (0.3 + softness * 0.5));
+  const phase = time * 0.0048;
+
+  const points = [];
+  for (let i = 0; i < segmentCount; i++) {
+    const t = (i / segmentCount) * Math.PI * 2;
+    const c = Math.cos(t);
+    const s = Math.sin(t);
+
+    // 去掉时间驱动的边缘噪声，避免“方/长方”来回闪
+    const lowFreq = Math.sin(t * 2 + 0.62) * (0.55 + shellAmt * 0.6);
+    const highFreq = Math.sin(t * 5 - 1.08) * (0.45 + wobbleAbs * 0.5);
+    const radialNoise = (lowFreq * 0.018 + highFreq * 0.012) * (softness * 0.85 + 0.15) * ripple;
+    const wobblePulse = Math.sin(phase) * wobble * (0.08 + softness * 0.14);
+    const directional = s * (shellAmt * 0.24 + wobblePulse);
+    let baseShapeScale = 1;
+    if (shapeStyle === "squircle") {
+      baseShapeScale = Math.pow(Math.pow(Math.abs(c), shapeRoundness) + Math.pow(Math.abs(s), shapeRoundness), -1 / shapeRoundness);
+    } else if (shapeStyle === "oval") {
+      baseShapeScale = 1 + 0.08 * Math.sin(t) * Math.sin(t);
+    } else if (shapeStyle === "drop") {
+      baseShapeScale = 1 + 0.1 * Math.max(0, s) - 0.04 * Math.max(0, -s);
+    }
+    const radiusScale = baseShapeScale * (1 + radialNoise + directional);
+
+    points.push({
+      x: c * r * sx * radiusScale,
+      y: s * r * sy * radiusScale,
+    });
+  }
+
+  drawSoftClosedPath(ctx, points);
 }
 
 function drawJellyBall(ctx, options = {}) {
@@ -126,13 +187,13 @@ function drawJellyBall(ctx, options = {}) {
   shell.addColorStop(0.78, cfg.colorC);
   shell.addColorStop(1, cfg.colorD);
   ctx.fillStyle = shell;
-  drawJellyBodyPath(ctx, r, squash, wobble, cfg);
+  drawJellyBodyPath(ctx, r, squash, wobble, cfg, time);
   ctx.fill();
 
   ctx.shadowColor = "transparent";
   ctx.strokeStyle = cfg.outlineColor;
   ctx.lineWidth = cfg.outlineWidth;
-  drawJellyBodyPath(ctx, r - cfg.outlineWidth * 0.5, squash, wobble, cfg);
+  drawJellyBodyPath(ctx, r - cfg.outlineWidth * 0.5, squash, wobble, cfg, time);
   ctx.stroke();
 
   ctx.fillStyle = `rgba(255,255,255,${cfg.glossOpacity})`;

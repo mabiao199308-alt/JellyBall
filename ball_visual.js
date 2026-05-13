@@ -1,11 +1,9 @@
-const BALL_VISUAL_STORAGE_KEY = "swipe_ball_visual_cfg_v1";
-
 const defaultBallVisualCfg = {
   "radiusScale": 1.2,
   "minRadius": 30,
   "rotationFactor": 0.22,
   "speedSquashDivisor": 1500,
-  "squashStrength": 1,
+  "squashStrength": 0.3,
   "wobbleAmount": 0.6,
   "shadowOpacity": 0.16,
   "shadowOffsetYRatio": 0.36,
@@ -60,7 +58,7 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, v));
 }
 
-function coerceBallVisualCfg(raw) {
+function resolveBallVisualCfg(raw) {
   const next = { ...defaultBallVisualCfg };
   if (!raw || typeof raw !== "object") return next;
   for (const [key, defaultVal] of Object.entries(defaultBallVisualCfg)) {
@@ -75,45 +73,24 @@ function coerceBallVisualCfg(raw) {
   return next;
 }
 
-function loadBallVisualCfg() {
-  try {
-    const raw = localStorage.getItem(BALL_VISUAL_STORAGE_KEY);
-    if (!raw) return { ...defaultBallVisualCfg };
-    return coerceBallVisualCfg(JSON.parse(raw));
-  } catch {
-    return { ...defaultBallVisualCfg };
-  }
-}
-
-function saveBallVisualCfg(cfg) {
-  const next = coerceBallVisualCfg(cfg);
-  localStorage.setItem(BALL_VISUAL_STORAGE_KEY, JSON.stringify(next));
-  return next;
-}
-
-function resetBallVisualCfg() {
-  localStorage.setItem(BALL_VISUAL_STORAGE_KEY, JSON.stringify(defaultBallVisualCfg));
-  return { ...defaultBallVisualCfg };
-}
-
 function getVisualRadius(baseRadius, cfg) {
   return Math.max(baseRadius * cfg.radiusScale, cfg.minRadius);
 }
 
 function drawJellyBodyPath(ctx, r, squash = 0, wobble = 0) {
-  const sx = 1 + squash * 0.16;
-  const sy = 1 - squash * 0.12;
+  const sx = 1 + squash * 0.42;
+  const sy = 1 - squash * 0.28;
   ctx.beginPath();
   ctx.moveTo(0, -r * 0.98 * sy);
-  ctx.bezierCurveTo(r * 0.68 * sx, -r * (1.02 + wobble * 0.02), r * (1.02 + wobble * 0.04), -r * 0.38 * sy, r * 0.94 * sx, r * 0.14 * sy);
-  ctx.bezierCurveTo(r * 0.88 * sx, r * (0.76 + wobble * 0.02), r * 0.46 * sx, r * 1.02 * sy, 0, r * (0.96 + wobble * 0.05));
-  ctx.bezierCurveTo(-r * 0.42 * sx, r * (1.04 + wobble * 0.04), -r * 0.92 * sx, r * (0.78 + wobble * 0.02), -r * 0.98 * sx, r * 0.16 * sy);
-  ctx.bezierCurveTo(-r * (1.04 + wobble * 0.03), -r * 0.42 * sy, -r * 0.64 * sx, -r * 0.98 * sy, 0, -r * 0.98 * sy);
+  ctx.bezierCurveTo(r * 0.74 * sx, -r * (1.04 + wobble * 0.08), r * (1.16 + wobble * 0.12), -r * 0.34 * sy, r * 1.02 * sx, r * 0.16 * sy);
+  ctx.bezierCurveTo(r * 0.96 * sx, r * (0.8 + wobble * 0.08), r * 0.5 * sx, r * 1.1 * sy, 0, r * (1.02 + wobble * 0.12));
+  ctx.bezierCurveTo(-r * 0.48 * sx, r * (1.12 + wobble * 0.12), -r * 1.02 * sx, r * (0.82 + wobble * 0.08), -r * 1.06 * sx, r * 0.18 * sy);
+  ctx.bezierCurveTo(-r * (1.18 + wobble * 0.08), -r * 0.38 * sy, -r * 0.7 * sx, -r * 1.02 * sy, 0, -r * 0.98 * sy);
   ctx.closePath();
 }
 
 function drawJellyBall(ctx, options = {}) {
-  const cfg = coerceBallVisualCfg(options.cfg);
+  const cfg = resolveBallVisualCfg(options.cfg);
   const baseRadius = Number.isFinite(options.baseRadius) ? options.baseRadius : 24;
   const r = getVisualRadius(baseRadius, cfg);
   const speed = Math.max(0, Number(options.speed) || 0);
@@ -123,12 +100,19 @@ function drawJellyBall(ctx, options = {}) {
   const angle = Number(options.angle) || 0;
   const lookDirX = Number(options.lookDirX);
   const lookDirY = Number(options.lookDirY);
-  const squash = clamp01(speed / Math.max(1, cfg.speedSquashDivisor)) * cfg.squashStrength;
-  const wobble = Math.sin(time * 0.008) * cfg.wobbleAmount;
+  const deformAmount = Number(options.deformAmount);
+  const wobbleOffset = Number(options.wobbleOffset);
+  const squash = Number.isFinite(deformAmount)
+    ? clamp01(deformAmount) * cfg.squashStrength
+    : clamp01(speed / Math.max(1, cfg.speedSquashDivisor)) * cfg.squashStrength;
+  const wobble = Number.isFinite(wobbleOffset)
+    ? Math.max(-1, Math.min(1, wobbleOffset)) * cfg.wobbleAmount
+    : Math.sin(time * 0.008) * cfg.wobbleAmount;
 
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(angle * cfg.rotationFactor);
+  const rotationMix = Math.min(1, cfg.rotationFactor + squash * 0.9);
+  ctx.rotate(angle * rotationMix);
 
   const shell = ctx.createRadialGradient(-r * 0.26, -r * 0.34, r * 0.1, 0, 0, r * 1.08);
   shell.addColorStop(0, cfg.colorA);
@@ -224,12 +208,7 @@ function drawJellyBall(ctx, options = {}) {
 }
 
 window.BallVisual = {
-  BALL_VISUAL_STORAGE_KEY,
   defaultBallVisualCfg,
-  coerceBallVisualCfg,
-  loadBallVisualCfg,
-  saveBallVisualCfg,
-  resetBallVisualCfg,
   getVisualRadius,
   drawJellyBall,
 };

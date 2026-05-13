@@ -15,6 +15,9 @@ const CFG_STORAGE_KEY = "swipe_debug_cfg_v2";
 const BEST_STORAGE_KEY = "swipe_best_meters_v1";
 const ANCHOR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
 const LOOK_DIR_SMOOTH = 12;
+const JELLY_DEFORM_DECAY = 3.8;
+const JELLY_WOBBLE_DECAY = 3.2;
+const JELLY_OSC_BASE = 10;
 
 const defaultCfg = {
   gravity: 2060,
@@ -89,37 +92,8 @@ const paramDefs = [
 ];
 
 const cfg = loadCfgFromStorage();
-const ballVisualCfg = window.BallVisual ? window.BallVisual.loadBallVisualCfg() : null;
-const deathFxCfg = window.DeathFx
-  ? window.DeathFx.loadDeathFxCfg()
-  : {
-      readyDelay: 0.28,
-      cooldown: 0.38,
-      floorYRatio: 0.94,
-      originYRatio: 0.9,
-      fxDuration: 0.72,
-      bigBurstCount: 5,
-      smallBurstCount: 12,
-      bigSpeedMin: 780,
-      bigSpeedMax: 1280,
-      smallSpeedMin: 520,
-      smallSpeedMax: 940,
-      gravityMin: 1700,
-      gravityMax: 2400,
-      particleLifeMin: 0.06,
-      particleLifeMax: 0.16,
-      bigRadiusMin: 12,
-      bigRadiusMax: 26,
-      smallRadiusMin: 3,
-      smallRadiusMax: 8,
-      mainSplatScaleMin: 0.72,
-      mainSplatScaleMax: 1,
-      sideSplatCount: 3,
-      sideSplatScaleMin: 0.55,
-      sideSplatScaleMax: 1.05,
-      burstToSplatScaleMin: 0.5,
-      burstToSplatScaleMax: 1.1,
-    };
+const ballVisualCfg = { ...window.BallVisual.defaultBallVisualCfg };
+const deathFxCfg = { ...window.DeathFx.defaultDeathFxCfg };
 const uiRefs = {};
 let showAdvancedParams = false;
 
@@ -157,6 +131,9 @@ const world = {
 
   ball: { x: 0, y: 0, vx: 0, vy: 0 },
   lookDir: { x: 0, y: 0 },
+  jellyDeform: 0,
+  jellyWobble: 0,
+  jellyPhase: 0,
   state: "aiming", // aiming | launched | tethered | dying | gameover
   dragging: false,
   pointerId: null,
@@ -315,9 +292,7 @@ function lerp(a, b, t) {
 }
 
 function normalizeDeathFxCfg() {
-  if (window.DeathFx) {
-    Object.assign(deathFxCfg, window.DeathFx.coerceDeathFxCfg(deathFxCfg));
-  }
+  Object.assign(deathFxCfg, window.DeathFx.resolveDeathFxCfg(deathFxCfg));
   if (deathFxCfg.bigSpeedMin > deathFxCfg.bigSpeedMax) [deathFxCfg.bigSpeedMin, deathFxCfg.bigSpeedMax] = [deathFxCfg.bigSpeedMax, deathFxCfg.bigSpeedMin];
   if (deathFxCfg.smallSpeedMin > deathFxCfg.smallSpeedMax) [deathFxCfg.smallSpeedMin, deathFxCfg.smallSpeedMax] = [deathFxCfg.smallSpeedMax, deathFxCfg.smallSpeedMin];
   if (deathFxCfg.gravityMin > deathFxCfg.gravityMax) [deathFxCfg.gravityMin, deathFxCfg.gravityMax] = [deathFxCfg.gravityMax, deathFxCfg.gravityMin];
@@ -387,6 +362,9 @@ function resetRun() {
   world.ball.vy = 0;
   world.lookDir.x = 0;
   world.lookDir.y = 0;
+  world.jellyDeform = 0;
+  world.jellyWobble = 0;
+  world.jellyPhase = 0;
   world.state = "aiming";
   world.dragging = false;
   world.pointerId = null;
@@ -399,6 +377,54 @@ function resetRun() {
   world.minY = world.ball.y;
   world.runMeters = 0;
   updateMeterHud();
+}
+
+function kickJelly(amount, wobbleBoost = amount * 1.1) {
+  const nextDeform = Math.max(0, Math.min(1, amount));
+  const nextWobble = Math.max(0, Math.min(1, wobbleBoost));
+  if (nextDeform > world.jellyDeform) world.jellyDeform = nextDeform;
+  if (nextWobble > world.jellyWobble) world.jellyWobble = nextWobble;
+  world.jellyPhase += Math.PI * 0.85;
+}
+
+function updateJellyState(dt) {
+  const deformDamp = Math.exp(-JELLY_DEFORM_DECAY * dt);
+  const wobbleDamp = Math.exp(-JELLY_WOBBLE_DECAY * dt);
+  world.jellyDeform *= deformDamp;
+  world.jellyWobble *= wobbleDamp;
+  world.jellyPhase += dt * (JELLY_OSC_BASE + world.jellyWobble * 20);
+
+  if (world.dragging && world.state === "aiming" && world.activeAnchor) {
+    const dx = world.ball.x - world.activeAnchor.x;
+    const dy = world.ball.y - world.activeAnchor.y;
+    const dist = Math.hypot(dx, dy) || 0.0001;
+    const stretchRatio = Math.max(0, Math.min(1, dist / Math.max(1, cfg.maxStretch)));
+    const aimDeform = Math.pow(stretchRatio, 0.72) * 0.95;
+    if (aimDeform > world.jellyDeform) world.jellyDeform = aimDeform;
+  }
+
+  if (world.state === "launched") {
+    const speedRatio = Math.max(0, Math.min(1, Math.hypot(world.ball.vx, world.ball.vy) / 1400));
+    const flightDeform = Math.pow(speedRatio, 0.82) * 0.82;
+    const flightWobble = speedRatio * 0.34;
+    if (flightDeform > world.jellyDeform) world.jellyDeform = flightDeform;
+    if (flightWobble > world.jellyWobble) world.jellyWobble = flightWobble;
+  }
+
+  if (world.state === "tethered" && world.activeAnchor) {
+    const dx = world.ball.x - world.activeAnchor.x;
+    const dy = world.ball.y - world.activeAnchor.y;
+    const dist = Math.hypot(dx, dy) || 0.0001;
+    const stretchRatio = Math.max(0, Math.min(1, Math.abs(dist - cfg.tetherRestLength) / Math.max(1, cfg.tetherMaxLength)));
+    const speedRatio = Math.max(0, Math.min(1, Math.hypot(world.ball.vx, world.ball.vy) / 900));
+    const holdDeform = Math.pow(stretchRatio, 0.75) * speedRatio * 0.9;
+    const holdWobble = stretchRatio * speedRatio * 0.42;
+    if (holdDeform > world.jellyDeform) world.jellyDeform = holdDeform;
+    if (holdWobble > world.jellyWobble) world.jellyWobble = holdWobble;
+  }
+
+  if (world.jellyDeform < 0.003) world.jellyDeform = 0;
+  if (world.jellyWobble < 0.003) world.jellyWobble = 0;
 }
 
 function updateLookDirection(dt) {
@@ -508,6 +534,7 @@ function launchBall() {
   const launchSpeed = Math.min(curvedStretch * cfg.launchPower, cfg.maxLaunchSpeed);
   b.vx = (-dx / dist) * launchSpeed;
   b.vy = (-dy / dist) * launchSpeed;
+  kickJelly(0.55 + stretchRatio * 0.45, 0.5 + stretchRatio * 0.5);
   world.lastReleasedAnchor = world.activeAnchor;
   // 发射后释放当前挂点；这样冷却结束后可重新挂回同一锚点
   world.activeAnchor = null;
@@ -547,6 +574,9 @@ function hookToAnchor(anchor) {
   const nextTangential = tangentialSpeed * tangentialBoost;
   b.vx = nextRadial * ux + nextTangential * tx;
   b.vy = nextRadial * uy + nextTangential * ty;
+  const hookImpact = Math.max(Math.abs(radialSpeed), Math.abs(tangentialSpeed) * 0.55);
+  const hookImpactRatio = Math.max(0, Math.min(1, hookImpact / 1200));
+  kickJelly(0.38 + hookImpactRatio * 0.62, 0.34 + hookImpactRatio * 0.58);
 
   world.activeAnchor = anchor;
   world.state = "tethered";
@@ -690,8 +720,8 @@ function getJuicePalette() {
 }
 
 function spawnJuiceBurstParticle(fx, originX, originY, palette, big = false) {
-  const angle = rand(-Math.PI * 0.95, Math.PI * 0.02);
-  const speed = big ? rand(deathFxCfg.bigSpeedMin, deathFxCfg.bigSpeedMax) : rand(deathFxCfg.smallSpeedMin, deathFxCfg.smallSpeedMax);
+  const angle = -Math.PI * 0.5 + rand(-deathFxCfg.spreadAngle, deathFxCfg.spreadAngle);
+  const speed = (big ? rand(deathFxCfg.bigSpeedMin, deathFxCfg.bigSpeedMax) : rand(deathFxCfg.smallSpeedMin, deathFxCfg.smallSpeedMax)) * 1.78;
   const scale = big ? rand(1.05, 1.9) : rand(0.35, 0.8);
   fx.burstParticles.push({
     x: originX + rand(-10, 10),
@@ -709,7 +739,23 @@ function spawnJuiceBurstParticle(fx, originX, originY, palette, big = false) {
   });
 }
 
-function createJuiceSplat(x, y, color, alpha, scale = 1) {
+function createJuiceSplat(x, y, color, alpha, scale = 1, options = {}) {
+  const cluster = options.cluster !== false;
+  if (!cluster) {
+    return {
+      x,
+      y,
+      color,
+      alpha,
+      radius: rand(6, 12) * scale,
+      age: 0,
+      life: rand(0.7, 1.1),
+      grow: rand(1.02, 1.14),
+      lobes: [],
+      dripCount: 0,
+    };
+  }
+
   const lobes = [];
   const lobeCount = randInt(4, 9);
   for (let i = 0; i < lobeCount; i += 1) {
@@ -736,39 +782,44 @@ function createJuiceSplat(x, y, color, alpha, scale = 1) {
   };
 }
 
-function startDeathFx() {
+function startDeathFx(originX, originY) {
   normalizeDeathFxCfg();
-  const originX = clamp(toScreenX(world.ball.x), 24, world.w - 24);
-  const originY = clamp(toScreenY(world.ball.y), world.h * deathFxCfg.originYRatio, world.h - 24);
   const palette = getJuicePalette();
   const fx = createEmptyDeathFx();
+  const impactX = originX;
+  const impactY = originY;
+  const floorY = clamp(impactY + cfg.ballRadius * 0.55, impactY, world.h - 6);
   fx.active = true;
   fx.timer = deathFxCfg.fxDuration + deathFxCfg.cooldown;
-  fx.originX = originX;
-  fx.originY = originY;
-  fx.floorY = world.h * deathFxCfg.floorYRatio;
+  fx.originX = impactX;
+  fx.originY = impactY;
+  fx.floorY = floorY;
 
   fx.splats.push(
     createJuiceSplat(
-      originX + rand(-10, 10),
-      fx.floorY - rand(3, 8),
+      impactX + rand(-8, 8),
+      impactY + rand(-4, 4),
       palette[randInt(0, palette.length - 1)],
-      rand(0.16, 0.24),
+      rand(0.03, 0.06),
       rand(deathFxCfg.mainSplatScaleMin, deathFxCfg.mainSplatScaleMax),
+      { cluster: false },
     ),
   );
 
-  for (let i = 0; i < deathFxCfg.bigBurstCount; i += 1) spawnJuiceBurstParticle(fx, originX, originY, palette, true);
-  for (let i = 0; i < deathFxCfg.smallBurstCount; i += 1) spawnJuiceBurstParticle(fx, originX, originY, palette, false);
+  for (let i = 0; i < deathFxCfg.bigBurstCount; i += 1) spawnJuiceBurstParticle(fx, impactX, impactY, palette, true);
+  for (let i = 0; i < deathFxCfg.smallBurstCount; i += 1) spawnJuiceBurstParticle(fx, impactX, impactY, palette, false);
 
   for (let i = 0; i < deathFxCfg.sideSplatCount; i += 1) {
+    const angle = -Math.PI * 0.5 + rand(-deathFxCfg.spreadAngle * 0.8, deathFxCfg.spreadAngle * 0.8);
+    const dist = rand(140, 280);
     fx.splats.push(
       createJuiceSplat(
-        originX + rand(-34, 34),
-        fx.floorY - rand(2, 10),
+        impactX + Math.cos(angle) * dist,
+        impactY + Math.sin(angle) * dist * 0.96,
         palette[randInt(0, palette.length - 1)],
-        rand(0.14, 0.24),
+        rand(0.12, 0.2),
         rand(deathFxCfg.sideSplatScaleMin, deathFxCfg.sideSplatScaleMax),
+        { cluster: false },
       ),
     );
   }
@@ -805,6 +856,7 @@ function updateDeathFx(dt) {
           p.color,
           p.alpha * 0.96,
           p.scale * rand(deathFxCfg.burstToSplatScaleMin, deathFxCfg.burstToSplatScaleMax),
+          { cluster: false },
         ),
       );
       fx.burstParticles.splice(i, 1);
@@ -829,7 +881,7 @@ function checkGameOver() {
   if (world.launchGraceTimer > 0) return;
   const screenBottomY = world.cameraY + world.h;
   if (world.ball.y + cfg.ballRadius >= screenBottomY + cfg.deathBottomMargin) {
-    startDeathFx();
+    startDeathFx(toScreenX(world.ball.x), toScreenY(world.ball.y));
   }
 }
 
@@ -837,20 +889,26 @@ function collideBounds() {
   const b = world.ball;
   const r = cfg.ballRadius;
   if (b.x < r) {
+    const impact = Math.abs(b.vx);
     b.x = r;
     b.vx = -b.vx * cfg.restitution;
     b.vy *= cfg.wallFriction;
+    if (impact > 120) kickJelly(Math.min(0.42, impact / 1400), Math.min(0.34, impact / 1800));
   }
   if (b.x > world.w - r) {
+    const impact = Math.abs(b.vx);
     b.x = world.w - r;
     b.vx = -b.vx * cfg.restitution;
     b.vy *= cfg.wallFriction;
+    if (impact > 120) kickJelly(Math.min(0.42, impact / 1400), Math.min(0.34, impact / 1800));
   }
   const top = world.cameraY + r;
   if (b.y < top) {
+    const impact = Math.abs(b.vy);
     b.y = top;
     b.vy = -b.vy * cfg.restitution;
     b.vx *= cfg.wallFriction;
+    if (impact > 120) kickJelly(Math.min(0.36, impact / 1500), Math.min(0.3, impact / 1900));
   }
 }
 
@@ -874,6 +932,7 @@ function update(dt) {
   world.hookCooldown = Math.max(0, world.hookCooldown - dt);
   world.launchGraceTimer = Math.max(0, world.launchGraceTimer - dt);
   updateLookDirection(dt);
+  updateJellyState(dt);
 
   if (draggingAim) {
     // dragging 时仍继续更新镜头，让左右补位能及时生效
@@ -971,10 +1030,7 @@ function getAnchorVisualStyle(anchor) {
 }
 
 function getBallVisualRadius() {
-  if (window.BallVisual && ballVisualCfg) {
-    return window.BallVisual.getVisualRadius(cfg.ballRadius, ballVisualCfg);
-  }
-  return Math.max(cfg.ballRadius * 1.2, 30);
+  return window.BallVisual.getVisualRadius(cfg.ballRadius, ballVisualCfg);
 }
 
 function drawRubberBand() {
@@ -1165,25 +1221,19 @@ function drawBall() {
   const sx = toScreenX(world.ball.x);
   const angle = getBallRenderAngle();
 
-  if (window.BallVisual && ballVisualCfg) {
-    window.BallVisual.drawJellyBall(ctx, {
-      x: sx,
-      y: sy,
-      angle,
-      baseRadius: cfg.ballRadius,
-      speed: Math.hypot(world.ball.vx, world.ball.vy),
-      time: world.lastTime,
-      lookDirX: world.lookDir.x,
-      lookDirY: world.lookDir.y,
-      cfg: ballVisualCfg,
-    });
-    return;
-  }
-
-  ctx.fillStyle = "#84cc16";
-  ctx.beginPath();
-  ctx.arc(sx, sy, cfg.ballRadius, 0, Math.PI * 2);
-  ctx.fill();
+  window.BallVisual.drawJellyBall(ctx, {
+    x: sx,
+    y: sy,
+    angle,
+    baseRadius: cfg.ballRadius,
+    speed: Math.hypot(world.ball.vx, world.ball.vy),
+    time: world.lastTime,
+    deformAmount: world.jellyDeform,
+    wobbleOffset: Math.sin(world.jellyPhase) * world.jellyWobble,
+    lookDirX: world.lookDir.x,
+    lookDirY: world.lookDir.y,
+    cfg: ballVisualCfg,
+  });
 }
 
 function drawBreakFlash() {
@@ -1210,7 +1260,7 @@ function drawGameOver() {
   ctx.fillText(`本局 ${world.runMeters.toFixed(1)}m`, world.w * 0.5, world.h * 0.5);
   ctx.fillText(`最高 ${world.bestMeters.toFixed(1)}m`, world.w * 0.5, world.h * 0.56);
   ctx.font = "16px sans-serif";
-  ctx.fillText("点击【重置】继续挑战", world.w * 0.5, world.h * 0.64);
+  ctx.fillText("点击任意位置重新挑战", world.w * 0.5, world.h * 0.64);
 }
 
 function draw() {
@@ -1268,16 +1318,6 @@ defaultCfgBtn.addEventListener("click", () => {
   syncPanelFromCfg();
   onCfgChanged("restLength");
   setStatus("已恢复默认参数（如需持久化请点保存）。");
-});
-
-window.addEventListener("storage", (e) => {
-  if (window.BallVisual && ballVisualCfg && e.key === window.BallVisual.BALL_VISUAL_STORAGE_KEY) {
-    Object.assign(ballVisualCfg, window.BallVisual.loadBallVisualCfg());
-  }
-  if (window.DeathFx && e.key === window.DeathFx.DEATH_FX_STORAGE_KEY) {
-    Object.assign(deathFxCfg, window.DeathFx.loadDeathFxCfg());
-    normalizeDeathFxCfg();
-  }
 });
 
 window.addEventListener("resize", resize);

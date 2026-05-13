@@ -26,6 +26,29 @@
         </div>
         <p class="debug-panel__status" id="cfgStatus">参数实时生效，点击保存写入本地。</p>
       </aside>
+
+      <aside class="debug-panel debug-panel--deathfx" id="deathFxDebugPanel">
+        <h2>死亡特效调试</h2>
+        <div class="debug-panel__body" id="deathFxDebugPanelBody"></div>
+        <div class="debug-panel__actions">
+          <button id="deathFxPreviewBtn" type="button">预览特效</button>
+          <button id="deathFxDefaultBtn" type="button">恢复默认</button>
+        </div>
+        <p class="debug-panel__status" id="deathFxCfgStatus">参数实时生效。</p>
+      </aside>
+
+      <aside class="debug-panel debug-panel--jelly" id="jellyDebugPanel">
+        <h2>果冻形变调试</h2>
+        <div class="debug-panel__body" id="jellyDebugPanelBody"></div>
+        <div class="debug-panel__actions">
+          <button id="jellyDefaultBtn" type="button">恢复默认</button>
+        </div>
+        <p class="debug-panel__status" id="jellyCfgStatus">参数实时生效：持续形变 + 拉满持续晃动。</p>
+      </aside>
+
+      <button class="debug-toggle debug-toggle--physics" id="debugToggleBtn" type="button">显示调试</button>
+      <button class="debug-toggle debug-toggle--deathfx" id="deathFxDebugToggleBtn" type="button">显示死亡特效调试</button>
+      <button class="debug-toggle debug-toggle--jelly" id="jellyDebugToggleBtn" type="button">显示果冻形变调试</button>
     </main>
 
     <script src="./ball_visual.js"></script>

@@ -84,7 +84,7 @@ body {
 
 .debug-panel {
   position: absolute;
-  right: 12px;
+  left: 12px;
   top: 12px;
   bottom: 12px;
   width: min(340px, 34vw);
@@ -99,6 +99,21 @@ body {
   border: 1px solid rgba(148, 163, 184, 0.25);
   backdrop-filter: blur(5px);
   color: #dbeafe;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.debug-panel.is-hidden {
+  opacity: 0;
+  transform: translateX(-12px);
+  pointer-events: none;
+}
+
+.debug-panel--deathfx {
+  left: 12px;
+}
+
+.debug-panel--jelly {
+  left: 12px;
 }
 
 .debug-panel h2 {
@@ -130,6 +145,16 @@ body {
   width: 100%;
 }
 
+.debug-section-title {
+  margin: 4px 0 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #bfdbfe;
+}
+
 .debug-panel__actions {
   display: flex;
   gap: 8px;
@@ -150,4 +175,29 @@ body {
   font-size: 12px;
   color: #bfdbfe;
   opacity: 0.9;
+}
+
+.debug-toggle {
+  position: absolute;
+  right: 12px;
+  z-index: 20;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  padding: 8px 12px;
+  color: #f8fafc;
+  background: rgba(30, 41, 59, 0.85);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.debug-toggle--physics {
+  top: 12px;
+}
+
+.debug-toggle--deathfx {
+  top: 52px;
+}
+
+.debug-toggle--jelly {
+  top: 92px;
 }

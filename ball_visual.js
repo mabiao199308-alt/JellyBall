@@ -3,7 +3,10 @@ const defaultBallVisualCfg = {
   "minRadius": 30,
   "rotationFactor": 0.22,
   "speedSquashDivisor": 1500,
-  "squashStrength": 0.3,
+  "squashStrength": 0.56,
+  "stretchNarrowStrength": 0.15,
+  "stretchLengthStrength": 0.28,
+  "stretchMinWidthScale": 0.88,
   "wobbleAmount": 0.6,
   "shadowOpacity": 0.16,
   "shadowOffsetYRatio": 0.36,
@@ -77,9 +80,11 @@ function getVisualRadius(baseRadius, cfg) {
   return Math.max(baseRadius * cfg.radiusScale, cfg.minRadius);
 }
 
-function drawJellyBodyPath(ctx, r, squash = 0, wobble = 0) {
-  const sx = 1 + squash * 0.42;
-  const sy = 1 - squash * 0.28;
+function drawJellyBodyPath(ctx, r, squash = 0, wobble = 0, cfg = defaultBallVisualCfg) {
+  // 受力时应表现为“拉长”而非“变宽”：沿局部 Y 轴拉伸，X 轴轻微收窄
+  const safeSquash = Math.min(Math.max(0, squash), 0.45);
+  const sx = Math.max(cfg.stretchMinWidthScale, 1 - safeSquash * cfg.stretchNarrowStrength);
+  const sy = 1 + safeSquash * cfg.stretchLengthStrength;
   ctx.beginPath();
   ctx.moveTo(0, -r * 0.98 * sy);
   ctx.bezierCurveTo(r * 0.74 * sx, -r * (1.04 + wobble * 0.08), r * (1.16 + wobble * 0.12), -r * 0.34 * sy, r * 1.02 * sx, r * 0.16 * sy);
@@ -100,6 +105,7 @@ function drawJellyBall(ctx, options = {}) {
   const angle = Number(options.angle) || 0;
   const lookDirX = Number(options.lookDirX);
   const lookDirY = Number(options.lookDirY);
+  const faceMode = typeof options.faceMode === "string" ? options.faceMode : "normal";
   const deformAmount = Number(options.deformAmount);
   const wobbleOffset = Number(options.wobbleOffset);
   const squash = Number.isFinite(deformAmount)
@@ -120,13 +126,13 @@ function drawJellyBall(ctx, options = {}) {
   shell.addColorStop(0.78, cfg.colorC);
   shell.addColorStop(1, cfg.colorD);
   ctx.fillStyle = shell;
-  drawJellyBodyPath(ctx, r, squash, wobble);
+  drawJellyBodyPath(ctx, r, squash, wobble, cfg);
   ctx.fill();
 
   ctx.shadowColor = "transparent";
   ctx.strokeStyle = cfg.outlineColor;
   ctx.lineWidth = cfg.outlineWidth;
-  drawJellyBodyPath(ctx, r - cfg.outlineWidth * 0.5, squash, wobble);
+  drawJellyBodyPath(ctx, r - cfg.outlineWidth * 0.5, squash, wobble, cfg);
   ctx.stroke();
 
   ctx.fillStyle = `rgba(255,255,255,${cfg.glossOpacity})`;
@@ -186,23 +192,47 @@ function drawJellyBall(ctx, options = {}) {
       : eyeR * cfg.pupilHighlightY;
   const pupilHighlightR = r * cfg.pupilHighlightRadius;
 
-  ctx.fillStyle = cfg.eyeColor;
-  ctx.beginPath();
-  ctx.arc(leftEyeX, eyeCenterY, eyeR, 0, Math.PI * 2);
-  ctx.arc(rightEyeX, eyeCenterY, eyeR, 0, Math.PI * 2);
-  ctx.fill();
+  if (faceMode === "flight_squint") {
+    const squintHalfW = eyeR * 0.62;
+    const squintHalfH = eyeR * 0.48;
+    const squintLineW = Math.max(1.6, r * 0.085);
+    ctx.strokeStyle = cfg.pupilColor;
+    ctx.lineWidth = squintLineW;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
 
-  ctx.fillStyle = cfg.pupilColor;
-  ctx.beginPath();
-  ctx.arc(leftEyeX + pupilDx, eyeCenterY + pupilDy, pupilR, 0, Math.PI * 2);
-  ctx.arc(rightEyeX + pupilDx, eyeCenterY + pupilDy, pupilR, 0, Math.PI * 2);
-  ctx.fill();
+    // 左眼: >
+    ctx.beginPath();
+    ctx.moveTo(leftEyeX - squintHalfW, eyeCenterY - squintHalfH);
+    ctx.lineTo(leftEyeX + squintHalfW, eyeCenterY);
+    ctx.lineTo(leftEyeX - squintHalfW, eyeCenterY + squintHalfH);
+    ctx.stroke();
 
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.beginPath();
-  ctx.arc(leftEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy, pupilHighlightR, 0, Math.PI * 2);
-  ctx.arc(rightEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy, pupilHighlightR, 0, Math.PI * 2);
-  ctx.fill();
+    // 右眼: <
+    ctx.beginPath();
+    ctx.moveTo(rightEyeX + squintHalfW, eyeCenterY - squintHalfH);
+    ctx.lineTo(rightEyeX - squintHalfW, eyeCenterY);
+    ctx.lineTo(rightEyeX + squintHalfW, eyeCenterY + squintHalfH);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = cfg.eyeColor;
+    ctx.beginPath();
+    ctx.arc(leftEyeX, eyeCenterY, eyeR, 0, Math.PI * 2);
+    ctx.arc(rightEyeX, eyeCenterY, eyeR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = cfg.pupilColor;
+    ctx.beginPath();
+    ctx.arc(leftEyeX + pupilDx, eyeCenterY + pupilDy, pupilR, 0, Math.PI * 2);
+    ctx.arc(rightEyeX + pupilDx, eyeCenterY + pupilDy, pupilR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.beginPath();
+    ctx.arc(leftEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy, pupilHighlightR, 0, Math.PI * 2);
+    ctx.arc(rightEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy, pupilHighlightR, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   ctx.restore();
 }

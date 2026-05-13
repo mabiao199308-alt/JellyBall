@@ -6,18 +6,72 @@ const meterDisplayEl = document.getElementById("meterDisplay");
 const fpsDisplayEl = document.getElementById("fpsDisplay");
 
 const debugPanelBody = document.getElementById("debugPanelBody");
+const debugPanel = document.getElementById("debugPanel");
+const debugToggleBtn = document.getElementById("debugToggleBtn");
+const deathFxDebugPanelBody = document.getElementById("deathFxDebugPanelBody");
+const deathFxDebugPanel = document.getElementById("deathFxDebugPanel");
+const deathFxDebugToggleBtn = document.getElementById("deathFxDebugToggleBtn");
+const deathFxPreviewBtn = document.getElementById("deathFxPreviewBtn");
+const deathFxDefaultBtn = document.getElementById("deathFxDefaultBtn");
+const jellyDebugPanelBody = document.getElementById("jellyDebugPanelBody");
+const jellyDebugPanel = document.getElementById("jellyDebugPanel");
+const jellyDebugToggleBtn = document.getElementById("jellyDebugToggleBtn");
+const jellyDefaultBtn = document.getElementById("jellyDefaultBtn");
+const jellyCfgStatus = document.getElementById("jellyCfgStatus");
 const toggleAdvancedBtn = document.getElementById("toggleAdvancedBtn");
 const saveCfgBtn = document.getElementById("saveCfgBtn");
 const defaultCfgBtn = document.getElementById("defaultCfgBtn");
 const cfgStatus = document.getElementById("cfgStatus");
+const deathFxCfgStatus = document.getElementById("deathFxCfgStatus");
 
 const CFG_STORAGE_KEY = "swipe_debug_cfg_v2";
 const BEST_STORAGE_KEY = "swipe_best_meters_v1";
+const JELLY_CFG_STORAGE_KEY = "swipe_jelly_cfg_v1";
 const ANCHOR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
 const LOOK_DIR_SMOOTH = 12;
 const JELLY_DEFORM_DECAY = 3.8;
 const JELLY_WOBBLE_DECAY = 3.2;
 const JELLY_OSC_BASE = 10;
+const JELLY_NEAR_MAX_WOBBLE_RATIO = 0.94;
+const JELLY_NEAR_MAX_WOBBLE_DELAY_PAD = 0.08;
+const TRACK_ENABLED = true;
+const TRACK_PIN_SPEED = 90;
+const TRACK_EXCLUSIVE_OPENING = false;
+const TRACK_TO_ANCHOR_GAP_PX = 24;
+const TRACK_UNLOCK_ANCHOR_COUNT = 10;
+const TRACK_SLOT_INTERVAL = 6;
+const TRACK_SPAWN_CHANCE = 0.62;
+const TRACK_SPAWN_CHANCE_MAX = 0.9;
+const TRACK_SLOT_INTERVAL_MIN = 3;
+const TRACK_ANCHOR_BLOCK_Y = 170;
+const TRACK_ANCHOR_BLOCK_X_RATIO = 0.72;
+const INITIAL_PREGEN_ANCHORS = 10;
+const ANCHOR_DIFFICULTY_START_METERS = 30;
+const ANCHOR_DIFFICULTY_FULL_METERS = 160;
+const ANCHOR_SPACING_BONUS_MIN = 26;
+const ANCHOR_SPACING_BONUS_MAX = 78;
+const GEAR_ENABLED = true;
+const GEAR_ROT_SPEED = 2.6;
+const GEAR_TEETH = 12;
+const GEAR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
+const GEAR_SPACING_MIN = 280;
+const GEAR_SPACING_MAX = 420;
+const GEAR_UNLOCK_ANCHOR_COUNT = 20;
+const GEAR_SLOT_INTERVAL = 5;
+const GEAR_SPAWN_CHANCE = 0.4;
+const GEAR_SPAWN_CHANCE_MAX = 0.72;
+const GEAR_SLOT_INTERVAL_MIN = 3;
+const GEAR_ANCHOR_BLOCK_Y = 190;
+const GEAR_ANCHOR_BLOCK_X_PAD = 74;
+const GEAR_SAFE_ANCHOR_MIN_X_GAP = 130;
+const HAZARD_DENSITY_START_METERS = 60;
+const HAZARD_DENSITY_FULL_METERS = 260;
+const RED_ANCHOR_BLINK_DELAY = 0.5;
+const RED_ANCHOR_VANISH_DELAY = 3;
+const RED_ANCHOR_RESPAWN_DELAY = 2;
+const RED_ANCHOR_BLINK_PERIOD_START = 0.5;
+const RED_ANCHOR_BLINK_PERIOD_END = 0.2;
+const RED_ANCHOR_BLINK_ACCEL_START = 0.36;
 
 const defaultCfg = {
   gravity: 2060,
@@ -53,7 +107,16 @@ const defaultCfg = {
   anchorSpacingMin: 120,
   anchorSpacingMax: 185,
   anchorSidePadding: 70,
+  tetherJellyHoldBoost: 1,
+  tetherJellyHoldWobbleBoost: 1,
+  hookWobbleDuration: 0.18,
 };
+
+const jellyParamDefs = [
+  { key: "tetherJellyHoldBoost", label: "挂绳持续形变倍率", min: 0.2, max: 4, step: 0.01 },
+  { key: "tetherJellyHoldWobbleBoost", label: "拉满持续晃动强度(仅拉满)", min: 0.2, max: 3.5, step: 0.01 },
+  { key: "hookWobbleDuration", label: "挂点晃动时长(秒)", min: 0.05, max: 0.6, step: 0.01 },
+];
 
 const paramDefs = [
   { key: "gravity", label: "重力", min: 600, max: 3200, step: 10 },
@@ -91,17 +154,32 @@ const paramDefs = [
   { key: "anchorSidePadding", label: "钉子边距", min: 20, max: 140, step: 1, advanced: true },
 ];
 
+const deathFxParamDefs = [
+  { key: "fxDuration", label: "特效时长", min: 0.08, max: 1.8, step: 0.01 },
+  { key: "spreadAngle", label: "喷射角度", min: 0.1, max: 1.75, step: 0.01 },
+  { key: "bigBurstCount", label: "大颗粒数量", min: 0, max: 16, step: 1 },
+  { key: "smallBurstCount", label: "小颗粒数量", min: 0, max: 40, step: 1 },
+  { key: "sideSplatCount", label: "侧向污渍数量", min: 0, max: 10, step: 1 },
+];
+const deathFxIntegerKeys = new Set(["bigBurstCount", "smallBurstCount", "sideSplatCount"]);
+
 const cfg = loadCfgFromStorage();
 const ballVisualCfg = { ...window.BallVisual.defaultBallVisualCfg };
 const deathFxCfg = { ...window.DeathFx.defaultDeathFxCfg };
 const uiRefs = {};
+const deathFxUiRefs = {};
+const jellyUiRefs = {};
 let showAdvancedParams = false;
+let debugPanelVisible = false;
+let deathFxPanelVisible = false;
+let jellyPanelVisible = false;
 
 normalizeDeathFxCfg();
 
 function createEmptyDeathFx() {
   return {
     active: false,
+    previewOnly: false,
     timer: 0,
     originX: 0,
     originY: 0,
@@ -120,6 +198,16 @@ const world = {
   anchorIdSeed: 1,
   anchorLaneCursor: 0,
   generatedTopY: 0,
+  anchorSpawnCount: 0,
+  redAnchorRespawns: [],
+  gears: [],
+  gearLaneCursor: 0,
+  generatedGearTopY: 0,
+  gearSlotsSinceSpawn: 0,
+  pendingSafeAnchorSide: 0,
+  movingTrack: null,
+  trackLaneCursor: 0,
+  trackSlotsSinceSpawn: 0,
 
   cameraY: 0,
   cameraX: 0,
@@ -134,6 +222,7 @@ const world = {
   jellyDeform: 0,
   jellyWobble: 0,
   jellyPhase: 0,
+  timeSec: 0,
   state: "aiming", // aiming | launched | tethered | dying | gameover
   dragging: false,
   pointerId: null,
@@ -143,7 +232,13 @@ const world = {
   breakFlash: 0,
   hookFlash: 0,
   hookCooldown: 0,
+  lastTetherSnapSec: -999,
+  lastHookSec: -999,
+  tetheredSinceSec: -999,
+  hookWobbleTimer: 0,
+  hookWobbleStrength: 0,
   launchGraceTimer: 0,
+  hasHookedSinceLaunch: false,
   deathFx: createEmptyDeathFx(),
 };
 
@@ -169,6 +264,26 @@ function saveCfgToStorage() {
   localStorage.setItem(CFG_STORAGE_KEY, JSON.stringify(payload));
 }
 
+function loadJellyCfgFromStorage() {
+  try {
+    const raw = localStorage.getItem(JELLY_CFG_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    for (const def of jellyParamDefs) {
+      const val = Number(parsed[def.key]);
+      if (Number.isFinite(val)) cfg[def.key] = clamp(val, def.min, def.max);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function saveJellyCfgToStorage() {
+  const payload = {};
+  for (const def of jellyParamDefs) payload[def.key] = cfg[def.key];
+  localStorage.setItem(JELLY_CFG_STORAGE_KEY, JSON.stringify(payload));
+}
+
 function loadBestMeters() {
   const raw = Number(localStorage.getItem(BEST_STORAGE_KEY));
   return Number.isFinite(raw) ? raw : 0;
@@ -190,6 +305,34 @@ function formatVal(def, val) {
 
 function setStatus(text) {
   cfgStatus.textContent = text;
+}
+
+function setDeathFxStatus(text) {
+  if (!deathFxCfgStatus) return;
+  deathFxCfgStatus.textContent = text;
+}
+
+function setJellyStatus(text) {
+  if (!jellyCfgStatus) return;
+  jellyCfgStatus.textContent = text;
+}
+
+function syncDebugPanelVisibility() {
+  if (!debugPanel || !debugToggleBtn) return;
+  debugPanel.classList.toggle("is-hidden", !debugPanelVisible);
+  debugToggleBtn.textContent = debugPanelVisible ? "隐藏调试" : "显示调试";
+}
+
+function syncDeathFxPanelVisibility() {
+  if (!deathFxDebugPanel || !deathFxDebugToggleBtn) return;
+  deathFxDebugPanel.classList.toggle("is-hidden", !deathFxPanelVisible);
+  deathFxDebugToggleBtn.textContent = deathFxPanelVisible ? "隐藏死亡特效调试" : "显示死亡特效调试";
+}
+
+function syncJellyPanelVisibility() {
+  if (!jellyDebugPanel || !jellyDebugToggleBtn) return;
+  jellyDebugPanel.classList.toggle("is-hidden", !jellyPanelVisible);
+  jellyDebugToggleBtn.textContent = jellyPanelVisible ? "隐藏果冻形变调试" : "显示果冻形变调试";
 }
 
 function buildDebugPanel() {
@@ -232,11 +375,117 @@ function buildDebugPanel() {
     debugPanelBody.appendChild(row);
     uiRefs[def.key] = { def, input, value };
   }
+
+}
+
+function buildDeathFxDebugPanel() {
+  if (!deathFxDebugPanelBody) return;
+  deathFxDebugPanelBody.innerHTML = "";
+  for (const key of Object.keys(deathFxUiRefs)) {
+    delete deathFxUiRefs[key];
+  }
+
+  for (const def of deathFxParamDefs) {
+    const row = document.createElement("label");
+    row.className = "debug-row";
+
+    const title = document.createElement("div");
+    title.className = "debug-row__title";
+    const name = document.createElement("span");
+    const value = document.createElement("span");
+    name.textContent = def.label;
+    value.textContent = formatVal(def, deathFxCfg[def.key]);
+    title.appendChild(name);
+    title.appendChild(value);
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(def.min);
+    input.max = String(def.max);
+    input.step = String(def.step);
+    input.value = String(deathFxCfg[def.key]);
+    input.addEventListener("input", () => {
+      let v = Number(input.value);
+      if (!Number.isFinite(v)) return;
+      if (deathFxIntegerKeys.has(def.key)) v = Math.round(v);
+      deathFxCfg[def.key] = v;
+      normalizeDeathFxCfg();
+      const next = deathFxCfg[def.key];
+      input.value = String(next);
+      value.textContent = formatVal(def, next);
+      setDeathFxStatus("死亡特效参数实时生效。");
+    });
+
+    row.appendChild(title);
+    row.appendChild(input);
+    deathFxDebugPanelBody.appendChild(row);
+    deathFxUiRefs[def.key] = { def, input, value };
+  }
+}
+
+function buildJellyDebugPanel() {
+  if (!jellyDebugPanelBody) return;
+  jellyDebugPanelBody.innerHTML = "";
+  for (const key of Object.keys(jellyUiRefs)) {
+    delete jellyUiRefs[key];
+  }
+
+  for (const def of jellyParamDefs) {
+    const row = document.createElement("label");
+    row.className = "debug-row";
+
+    const title = document.createElement("div");
+    title.className = "debug-row__title";
+    const name = document.createElement("span");
+    const value = document.createElement("span");
+    name.textContent = def.label;
+    value.textContent = formatVal(def, cfg[def.key]);
+    title.appendChild(name);
+    title.appendChild(value);
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(def.min);
+    input.max = String(def.max);
+    input.step = String(def.step);
+    input.value = String(cfg[def.key]);
+    input.addEventListener("input", () => {
+      const v = Number(input.value);
+      if (!Number.isFinite(v)) return;
+      cfg[def.key] = v;
+      value.textContent = formatVal(def, v);
+      setJellyStatus("果冻参数实时生效，已自动保存。");
+      saveJellyCfgToStorage();
+    });
+
+    row.appendChild(title);
+    row.appendChild(input);
+    jellyDebugPanelBody.appendChild(row);
+    jellyUiRefs[def.key] = { def, input, value };
+  }
 }
 
 function syncPanelFromCfg() {
   for (const def of paramDefs) {
     const ref = uiRefs[def.key];
+    if (!ref) continue;
+    ref.input.value = String(cfg[def.key]);
+    ref.value.textContent = formatVal(def, cfg[def.key]);
+  }
+}
+
+function syncDeathFxPanelFromCfg() {
+  for (const def of deathFxParamDefs) {
+    const ref = deathFxUiRefs[def.key];
+    if (!ref) continue;
+    ref.input.value = String(deathFxCfg[def.key]);
+    ref.value.textContent = formatVal(def, deathFxCfg[def.key]);
+  }
+}
+
+function syncJellyPanelFromCfg() {
+  for (const def of jellyParamDefs) {
+    const ref = jellyUiRefs[def.key];
     if (!ref) continue;
     ref.input.value = String(cfg[def.key]);
     ref.value.textContent = formatVal(def, cfg[def.key]);
@@ -291,6 +540,14 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+function mixRgb(a, b, t) {
+  const clamped = clamp01(t);
+  const r = Math.round(lerp(a[0], b[0], clamped));
+  const g = Math.round(lerp(a[1], b[1], clamped));
+  const b2 = Math.round(lerp(a[2], b[2], clamped));
+  return `rgb(${r}, ${g}, ${b2})`;
+}
+
 function normalizeDeathFxCfg() {
   Object.assign(deathFxCfg, window.DeathFx.resolveDeathFxCfg(deathFxCfg));
   if (deathFxCfg.bigSpeedMin > deathFxCfg.bigSpeedMax) [deathFxCfg.bigSpeedMin, deathFxCfg.bigSpeedMax] = [deathFxCfg.bigSpeedMax, deathFxCfg.bigSpeedMin];
@@ -308,8 +565,26 @@ function randInt(min, max) {
   return Math.floor(rand(min, max + 1));
 }
 
-function createAnchor(x, y, radius = 8) {
-  return { id: world.anchorIdSeed++, x, y, radius };
+function createAnchor(x, y, radius = 8, options = {}) {
+  const useFixedId = Number.isInteger(options.id);
+  const id = useFixedId ? options.id : world.anchorIdSeed++;
+  if (id >= world.anchorIdSeed) world.anchorIdSeed = id + 1;
+  const isRed = typeof options.isRed === "boolean" ? options.isRed : Math.random() < 0.5;
+  return {
+    id,
+    x,
+    y,
+    radius,
+    isRed,
+    fuseStarted: false,
+    fuseStartSec: 0,
+  };
+}
+
+function startRedAnchorFuse(anchor) {
+  if (!anchor || !anchor.isRed || anchor.fuseStarted) return;
+  anchor.fuseStarted = true;
+  anchor.fuseStartSec = world.timeSec;
 }
 
 function getFixedAnchorXByCursor(cursor) {
@@ -318,40 +593,291 @@ function getFixedAnchorXByCursor(cursor) {
   return Math.max(pad, Math.min(world.w - pad, world.w * ratio));
 }
 
-function addAnchorAbove() {
-  const spacing = rand(cfg.anchorSpacingMin, cfg.anchorSpacingMax);
-  const y = world.generatedTopY - spacing;
-  let x = getFixedAnchorXByCursor(world.anchorLaneCursor);
+function getAnchorMaxStepX() {
+  return Math.max(110, Math.min(world.w * 0.36, cfg.maxStretch * 1.72));
+}
+
+function getDynamicAnchorSpacingRange() {
+  const minBase = Math.min(cfg.anchorSpacingMin, cfg.anchorSpacingMax);
+  const maxBase = Math.max(cfg.anchorSpacingMin, cfg.anchorSpacingMax);
+  const meterSpan = Math.max(1, ANCHOR_DIFFICULTY_FULL_METERS - ANCHOR_DIFFICULTY_START_METERS);
+  const t = clamp01((world.runMeters - ANCHOR_DIFFICULTY_START_METERS) / meterSpan);
+  const min = minBase + ANCHOR_SPACING_BONUS_MIN * t;
+  const max = maxBase + ANCHOR_SPACING_BONUS_MAX * t;
+  return { min, max: Math.max(min + 6, max) };
+}
+
+function getRandomizedAnchorXByCursor(cursor) {
+  const base = getFixedAnchorXByCursor(cursor);
+  const jitter = rand(-22, 22);
+  const pad = cfg.anchorSidePadding;
+  return clamp(base + jitter, pad, world.w - pad);
+}
+
+function getRandomizedAnchorXBySide(side) {
+  const ratios = side < 0 ? [0.2, 0.35] : [0.65, 0.8];
+  const ratio = ratios[randInt(0, ratios.length - 1)];
+  const jitter = rand(-18, 18);
+  const pad = cfg.anchorSidePadding;
+  return clamp(world.w * ratio + jitter, pad, world.w - pad);
+}
+
+function isAnchorBlockedByTrack(x, y) {
+  if (!TRACK_ENABLED || !world.movingTrack || !world.movingTrack.activated) return false;
+  const t = world.movingTrack;
+  if (Math.abs(y - t.y) > TRACK_ANCHOR_BLOCK_Y) return false;
+  const blockHalfW = t.width * TRACK_ANCHOR_BLOCK_X_RATIO;
+  return Math.abs(x - t.x) < blockHalfW;
+}
+
+function isAnchorBlockedByGear(x, y) {
+  if (!GEAR_ENABLED || !world.gears.length) return false;
+  for (const g of world.gears) {
+    if (Math.abs(y - g.y) > GEAR_ANCHOR_BLOCK_Y) continue;
+    const blockHalfW = g.radius + GEAR_ANCHOR_BLOCK_X_PAD;
+    if (Math.abs(x - g.x) < blockHalfW) return true;
+  }
+  return false;
+}
+
+function addAnchorAbove(yOverride = null, forcedSide = 0) {
+  const spacingRange = getDynamicAnchorSpacingRange();
+  const spacing = rand(spacingRange.min, spacingRange.max);
+  const y = Number.isFinite(yOverride) ? yOverride : world.generatedTopY - spacing;
+  let x = forcedSide === 0 ? getRandomizedAnchorXByCursor(world.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
   world.anchorLaneCursor += 1;
   const prev = world.anchors[world.anchors.length - 1];
   if (prev) {
+    const maxStep = getAnchorMaxStepX();
     let guard = 0;
-    while (Math.abs(x - prev.x) < 60 && guard < ANCHOR_X_RATIOS.length) {
-      x = getFixedAnchorXByCursor(world.anchorLaneCursor);
+    while ((Math.abs(x - prev.x) < 60
+      || Math.abs(x - prev.x) > maxStep
+      || isAnchorBlockedByTrack(x, y)
+      || isAnchorBlockedByGear(x, y)
+      || (forcedSide !== 0 && Math.abs(x - prev.x) < GEAR_SAFE_ANCHOR_MIN_X_GAP)) && guard < ANCHOR_X_RATIOS.length + 4) {
+      x = forcedSide === 0 ? getRandomizedAnchorXByCursor(world.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
       world.anchorLaneCursor += 1;
       guard += 1;
     }
   }
 
   world.anchors.push(createAnchor(x, y));
+  world.anchorSpawnCount += 1;
   world.generatedTopY = y;
+}
+
+function canSpawnTrackFromGenerator() {
+  if (!TRACK_ENABLED || !world.movingTrack) return false;
+  if (world.anchorSpawnCount < TRACK_UNLOCK_ANCHOR_COUNT) return false;
+  const t = world.movingTrack;
+  if (!t.activated) return true;
+  return t.y > world.cameraY + world.h * 1.2 && world.activeAnchor !== t.pinAnchor;
+}
+
+function shouldSpawnTrackOnNextSlot() {
+  if (!canSpawnTrackFromGenerator()) return false;
+  if (!world.movingTrack.activated) return true;
+  const densityT = clamp01((world.runMeters - HAZARD_DENSITY_START_METERS) / Math.max(1, HAZARD_DENSITY_FULL_METERS - HAZARD_DENSITY_START_METERS));
+  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(TRACK_SLOT_INTERVAL, TRACK_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(TRACK_SPAWN_CHANCE, TRACK_SPAWN_CHANCE_MAX, densityT);
+  if (world.trackSlotsSinceSpawn < dynamicInterval) return false;
+  return Math.random() < dynamicChance;
+}
+
+function canSpawnGearFromGenerator() {
+  if (!GEAR_ENABLED) return false;
+  if (world.anchorSpawnCount < GEAR_UNLOCK_ANCHOR_COUNT) return false;
+  if (world.gearSlotsSinceSpawn < GEAR_SLOT_INTERVAL) return false;
+  return true;
+}
+
+function shouldSpawnGearOnNextSlot() {
+  if (!canSpawnGearFromGenerator()) return false;
+  if (!world.gears.length) return true;
+  const densityT = clamp01((world.runMeters - HAZARD_DENSITY_START_METERS) / Math.max(1, HAZARD_DENSITY_FULL_METERS - HAZARD_DENSITY_START_METERS));
+  const dynamicInterval = Math.max(GEAR_SLOT_INTERVAL_MIN, Math.round(lerp(GEAR_SLOT_INTERVAL, GEAR_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(GEAR_SPAWN_CHANCE, GEAR_SPAWN_CHANCE_MAX, densityT);
+  if (world.gearSlotsSinceSpawn < dynamicInterval) return false;
+  return Math.random() < dynamicChance;
 }
 
 function createInitialAnchors() {
   world.anchors = [];
   world.anchorIdSeed = 1;
-  world.anchorLaneCursor = 0;
+  world.anchorSpawnCount = 0;
+  world.anchorLaneCursor = randInt(0, ANCHOR_X_RATIOS.length - 1);
 
-  const base = createAnchor(world.w * 0.5, world.h * 0.75, 9);
+  if (TRACK_ENABLED && TRACK_EXCLUSIVE_OPENING && world.movingTrack && world.movingTrack.pinAnchor) {
+    const trackAnchor = world.movingTrack.pinAnchor;
+    world.activeAnchor = trackAnchor;
+    world.generatedTopY = trackAnchor.y - TRACK_TO_ANCHOR_GAP_PX;
+    for (let i = 0; i < INITIAL_PREGEN_ANCHORS; i += 1) addAnchorAbove();
+    return;
+  }
+
+  const base = createAnchor(world.w * 0.5, world.h * 0.75, 9, { isRed: false });
   world.anchors.push(base);
+  world.anchorSpawnCount += 1;
   world.activeAnchor = base;
   world.generatedTopY = base.y;
 
-  for (let i = 0; i < 26; i += 1) addAnchorAbove();
+  for (let i = 0; i < INITIAL_PREGEN_ANCHORS; i += 1) addAnchorAbove();
+}
+
+function createGearHazard(x, y) {
+  const radius = Math.max(34, Math.min(54, world.w * 0.105));
+  return {
+    x,
+    y,
+    radius,
+    innerRadius: radius * 0.42,
+    toothDepth: Math.max(8, radius * 0.24),
+    angle: rand(0, Math.PI * 2),
+    spinDir: Math.random() < 0.5 ? -1 : 1,
+  };
+}
+
+function spawnGearAtY(y) {
+  if (!GEAR_ENABLED) return false;
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const pad = cfg.anchorSidePadding + 22;
+  const leftX = clamp(world.w * rand(0.2, 0.36), pad, world.w - pad);
+  const rightX = clamp(world.w * rand(0.64, 0.8), pad, world.w - pad);
+  const x = side < 0 ? leftX : rightX;
+  world.gears.push(createGearHazard(x, y));
+  world.pendingSafeAnchorSide = side < 0 ? 1 : -1;
+  return true;
+}
+
+function getFixedGearXByCursor(cursor) {
+  const ratio = GEAR_X_RATIOS[cursor % GEAR_X_RATIOS.length];
+  const pad = cfg.anchorSidePadding + 18;
+  return Math.max(pad, Math.min(world.w - pad, world.w * ratio));
+}
+
+function addGearAbove() {
+  const spacing = rand(GEAR_SPACING_MIN, GEAR_SPACING_MAX);
+  const y = world.generatedGearTopY - spacing;
+  let x = getFixedGearXByCursor(world.gearLaneCursor);
+  world.gearLaneCursor += 1;
+  const prev = world.gears[world.gears.length - 1];
+  if (prev) {
+    let guard = 0;
+    while (Math.abs(x - prev.x) < 88 && guard < GEAR_X_RATIOS.length) {
+      x = getFixedGearXByCursor(world.gearLaneCursor);
+      world.gearLaneCursor += 1;
+      guard += 1;
+    }
+  }
+
+  world.gears.push(createGearHazard(x, y));
+  world.generatedGearTopY = y;
+}
+
+function createInitialGears() {
+  world.gears = [];
+  world.gearLaneCursor = randInt(0, GEAR_X_RATIOS.length - 1);
+  world.generatedGearTopY = world.generatedTopY;
+  world.gearSlotsSinceSpawn = 0;
+  world.pendingSafeAnchorSide = 0;
+}
+
+function createMovingTrack() {
+  const width = Math.max(220, Math.min(320, world.w * 0.62));
+  const height = Math.max(26, Math.min(38, world.h * 0.045));
+  const yOffset = Math.max(190, Math.min(280, world.h * 0.3));
+  const travelHalf = Math.max(40, width * 0.5 - 28);
+  const pinX = world.w * 0.5;
+  const pinIsRed = Math.random() < 0.5;
+  return {
+    x: world.w * 0.5,
+    y: world.h * 0.75 - yOffset,
+    width,
+    height,
+    travelHalf,
+    pinOffset: 0,
+    pinDir: Math.random() < 0.5 ? -1 : 1,
+    pinSpeed: TRACK_PIN_SPEED,
+    pinRadius: Math.max(10, Math.min(14, height * 0.44)),
+    hiddenUntilSec: 0,
+    activated: false,
+    pinAnchor: createAnchor(pinX, world.h * 0.75 - yOffset, Math.max(10, Math.min(14, height * 0.44)), {
+      isRed: pinIsRed,
+    }),
+  };
+}
+
+function getTrackRespawnXByCursor(cursor, width) {
+  const ratio = ANCHOR_X_RATIOS[cursor % ANCHOR_X_RATIOS.length];
+  const sidePad = Math.max(cfg.anchorSidePadding + 12, width * 0.5 + 14);
+  return clamp(world.w * ratio, sidePad, world.w - sidePad);
+}
+
+function spawnMovingTrackAtY(track, y) {
+  if (!track) return;
+  track.activated = true;
+  track.x = getTrackRespawnXByCursor(world.trackLaneCursor, track.width);
+  world.trackLaneCursor += 1;
+  track.y = y;
+  track.pinOffset = 0;
+  track.pinDir = Math.random() < 0.5 ? -1 : 1;
+  if (track.pinAnchor) {
+    track.pinAnchor.x = track.x;
+    track.pinAnchor.y = track.y;
+    track.pinAnchor.radius = track.pinRadius;
+    track.pinAnchor.isRed = Math.random() < 0.5;
+    track.pinAnchor.fuseStarted = false;
+    track.pinAnchor.fuseStartSec = 0;
+  }
+  track.hiddenUntilSec = world.timeSec;
+}
+
+function addGeneratedSlotAbove() {
+  const spacingRange = getDynamicAnchorSpacingRange();
+  const spacing = rand(spacingRange.min, spacingRange.max);
+  const y = world.generatedTopY - spacing;
+
+  if (world.pendingSafeAnchorSide !== 0) {
+    const safeSide = world.pendingSafeAnchorSide;
+    world.pendingSafeAnchorSide = 0;
+    addAnchorAbove(y, safeSide);
+    world.trackSlotsSinceSpawn += 1;
+    world.gearSlotsSinceSpawn += 1;
+    return;
+  }
+
+  const spawnTrack = shouldSpawnTrackOnNextSlot();
+  const spawnGear = !spawnTrack && shouldSpawnGearOnNextSlot();
+
+  if (spawnTrack) {
+    spawnMovingTrackAtY(world.movingTrack, y);
+    world.generatedTopY = y;
+    world.trackSlotsSinceSpawn = 0;
+    world.gearSlotsSinceSpawn += 1;
+    return;
+  }
+
+  if (spawnGear) {
+    spawnGearAtY(y);
+    world.generatedTopY = y;
+    world.gearSlotsSinceSpawn = 0;
+    world.trackSlotsSinceSpawn += 1;
+    return;
+  }
+
+  addAnchorAbove(y);
+  world.trackSlotsSinceSpawn += 1;
+  world.gearSlotsSinceSpawn += 1;
 }
 
 function resetRun() {
+  world.movingTrack = createMovingTrack();
+  world.trackLaneCursor = randInt(0, ANCHOR_X_RATIOS.length - 1);
+  world.trackSlotsSinceSpawn = 0;
+  world.gearSlotsSinceSpawn = 0;
+  world.pendingSafeAnchorSide = 0;
   createInitialAnchors();
+  createInitialGears();
   world.lastReleasedAnchor = null;
   world.ball.x = world.activeAnchor.x;
   world.ball.y = world.activeAnchor.y + cfg.restLength;
@@ -365,13 +891,21 @@ function resetRun() {
   world.jellyDeform = 0;
   world.jellyWobble = 0;
   world.jellyPhase = 0;
+  world.timeSec = 0;
+  world.redAnchorRespawns = [];
   world.state = "aiming";
   world.dragging = false;
   world.pointerId = null;
   world.breakFlash = 0;
   world.hookFlash = 0;
   world.hookCooldown = 0;
+  world.lastTetherSnapSec = -999;
+  world.lastHookSec = -999;
+  world.tetheredSinceSec = -999;
+  world.hookWobbleTimer = 0;
+  world.hookWobbleStrength = 0;
   world.launchGraceTimer = 0;
+  world.hasHookedSinceLaunch = false;
   world.deathFx = createEmptyDeathFx();
   world.startY = world.ball.y;
   world.minY = world.ball.y;
@@ -417,10 +951,32 @@ function updateJellyState(dt) {
     const dist = Math.hypot(dx, dy) || 0.0001;
     const stretchRatio = Math.max(0, Math.min(1, Math.abs(dist - cfg.tetherRestLength) / Math.max(1, cfg.tetherMaxLength)));
     const speedRatio = Math.max(0, Math.min(1, Math.hypot(world.ball.vx, world.ball.vy) / 900));
-    const holdDeform = Math.pow(stretchRatio, 0.75) * speedRatio * 0.9;
-    const holdWobble = stretchRatio * speedRatio * 0.42;
+    const radialSpeed = Math.abs((world.ball.vx * dx + world.ball.vy * dy) / dist);
+    const radialRatio = Math.max(0, Math.min(1, radialSpeed / 760));
+    const tensionRatio = Math.pow(stretchRatio, 0.62);
+    // 先算基础形变，再由倍率做“可见增益”，避免滑杆变化不明显
+    const holdDeformBase = Math.min(1, tensionRatio * 0.84 + radialRatio * 0.2 + speedRatio * 0.08);
+    const holdDeform = Math.min(1, holdDeformBase * (0.3 + cfg.tetherJellyHoldBoost * 0.95));
     if (holdDeform > world.jellyDeform) world.jellyDeform = holdDeform;
-    if (holdWobble > world.jellyWobble) world.jellyWobble = holdWobble;
+
+    // 仅在“挂点短抖结束后 + 真正接近拉满”时，给一个持续小晃动
+    const pullRatio = clamp01(dist / Math.max(1, cfg.tetherMaxLength));
+    const timeSinceHook = world.timeSec - world.tetheredSinceSec;
+    const minDelay = cfg.hookWobbleDuration + JELLY_NEAR_MAX_WOBBLE_DELAY_PAD;
+    if (pullRatio > JELLY_NEAR_MAX_WOBBLE_RATIO && timeSinceHook > minDelay) {
+      const nearMax = clamp01((pullRatio - JELLY_NEAR_MAX_WOBBLE_RATIO) / (1 - JELLY_NEAR_MAX_WOBBLE_RATIO));
+      const sustainWobble = Math.min(0.7, (0.05 + nearMax * 0.22) * cfg.tetherJellyHoldWobbleBoost);
+      if (sustainWobble > world.jellyWobble) world.jellyWobble = sustainWobble;
+      world.jellyPhase += nearMax * 0.09;
+    }
+  }
+
+  if (world.hookWobbleTimer > 0) {
+    world.hookWobbleTimer = Math.max(0, world.hookWobbleTimer - dt);
+    const duration = Math.max(0.001, cfg.hookWobbleDuration);
+    const ratio = clamp01(world.hookWobbleTimer / duration);
+    const timedWobble = world.hookWobbleStrength * ratio;
+    if (timedWobble > world.jellyWobble) world.jellyWobble = timedWobble;
   }
 
   if (world.jellyDeform < 0.003) world.jellyDeform = 0;
@@ -542,6 +1098,7 @@ function launchBall() {
   world.breakFlash = cfg.breakFlashDuration;
   world.hookCooldown = cfg.rehookCooldown;
   world.launchGraceTimer = cfg.launchGraceSec;
+  world.hasHookedSinceLaunch = false;
 }
 
 function hookToAnchor(anchor) {
@@ -576,13 +1133,22 @@ function hookToAnchor(anchor) {
   b.vy = nextRadial * uy + nextTangential * ty;
   const hookImpact = Math.max(Math.abs(radialSpeed), Math.abs(tangentialSpeed) * 0.55);
   const hookImpactRatio = Math.max(0, Math.min(1, hookImpact / 1200));
-  kickJelly(0.38 + hookImpactRatio * 0.62, 0.34 + hookImpactRatio * 0.58);
+  const hookDeform = 0.38 + hookImpactRatio * 0.62;
+  const hookWobbleBase = 0.34 + hookImpactRatio * 0.58;
+  const hookWobble = Math.min(1, hookWobbleBase);
+  kickJelly(hookDeform, hookWobble);
+  world.lastHookSec = world.timeSec;
+  world.tetheredSinceSec = world.timeSec;
+  world.hookWobbleStrength = hookWobble;
+  world.hookWobbleTimer = Math.max(0.001, cfg.hookWobbleDuration);
 
   world.activeAnchor = anchor;
   world.state = "tethered";
   world.hookFlash = cfg.breakFlashDuration;
   world.hookCooldown = cfg.rehookCooldown;
+  world.hasHookedSinceLaunch = true;
   world.cameraDownMaxY = world.cameraY + world.h * cfg.cameraDownLimitRatio;
+  startRedAnchorFuse(anchor);
 }
 
 function applyFreeFlightPhysics(dt) {
@@ -598,6 +1164,11 @@ function applyFreeFlightPhysics(dt) {
 function applyTetheredPhysics(dt) {
   const b = world.ball;
   const a = world.activeAnchor;
+  if (!a) {
+    world.state = "launched";
+    world.hasHookedSinceLaunch = false;
+    return;
+  }
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const dist = Math.hypot(dx, dy) || 0.0001;
@@ -620,12 +1191,21 @@ function applyTetheredPhysics(dt) {
   const ny = b.y - a.y;
   const nd = Math.hypot(nx, ny) || 0.0001;
   if (nd > cfg.tetherMaxLength) {
+    const excessRatio = Math.max(0, Math.min(1, (nd - cfg.tetherMaxLength) / Math.max(1, cfg.tetherMaxLength)));
     const ratio = cfg.tetherMaxLength / nd;
     const rx = nx / nd;
     const ry = ny / nd;
     b.x = a.x + nx * ratio;
     b.y = a.y + ny * ratio;
     const radialSpeed = b.vx * rx + b.vy * ry;
+    const snapImpact = Math.max(excessRatio * 0.75, Math.max(0, radialSpeed) / 900);
+    if (snapImpact > 0.06 && world.timeSec - world.lastTetherSnapSec > 0.055) {
+      const snapDeform = Math.min(0.68, 0.22 + snapImpact * 0.48);
+      const snapWobbleBase = Math.min(0.6, 0.2 + snapImpact * 0.4);
+      const snapWobble = Math.min(0.85, snapWobbleBase * 0.55);
+      kickJelly(snapDeform, snapWobble);
+      world.lastTetherSnapSec = world.timeSec;
+    }
     if (radialSpeed > 0) {
       b.vx -= radialSpeed * rx;
       b.vy -= radialSpeed * ry;
@@ -635,8 +1215,46 @@ function applyTetheredPhysics(dt) {
   collideBounds();
 }
 
+function updateAnchorFuse() {
+  for (let i = world.redAnchorRespawns.length - 1; i >= 0; i -= 1) {
+    const pending = world.redAnchorRespawns[i];
+    if (world.timeSec < pending.respawnAtSec) continue;
+    world.anchors.push(createAnchor(pending.x, pending.y, pending.radius, { id: pending.id, isRed: true }));
+    world.redAnchorRespawns.splice(i, 1);
+  }
+
+  for (let i = world.anchors.length - 1; i >= 0; i -= 1) {
+    const a = world.anchors[i];
+    if (!a.isRed || !a.fuseStarted) continue;
+    const elapsed = world.timeSec - a.fuseStartSec;
+    if (elapsed < RED_ANCHOR_VANISH_DELAY) continue;
+
+    world.redAnchorRespawns.push({
+      id: a.id,
+      x: a.x,
+      y: a.y,
+      radius: a.radius,
+      respawnAtSec: world.timeSec + RED_ANCHOR_RESPAWN_DELAY,
+    });
+
+    const isActive = a === world.activeAnchor;
+    world.anchors.splice(i, 1);
+
+    if (world.lastReleasedAnchor === a) world.lastReleasedAnchor = null;
+    if (!isActive) continue;
+
+    world.lastReleasedAnchor = a;
+    world.breakFlash = cfg.breakFlashDuration;
+    world.activeAnchor = null;
+    world.state = "launched";
+    world.hookCooldown = Math.max(world.hookCooldown, cfg.rehookCooldown);
+    world.hasHookedSinceLaunch = false;
+  }
+}
+
 function checkAnchorHook() {
   if (world.hookCooldown > 0 || world.state === "gameover") return;
+  if (world.hasHookedSinceLaunch) return;
   const b = world.ball;
   for (const a of world.anchors) {
     if (a === world.activeAnchor) continue;
@@ -648,14 +1266,93 @@ function checkAnchorHook() {
   }
 }
 
+function updateGear(dt) {
+  if (!GEAR_ENABLED) return;
+  for (const g of world.gears) {
+    g.angle = (g.angle + GEAR_ROT_SPEED * g.spinDir * dt) % (Math.PI * 2);
+  }
+}
+
+function updateMovingTrack(dt) {
+  if (!TRACK_ENABLED || !world.movingTrack) return;
+  const t = world.movingTrack;
+  if (!t.activated) return;
+
+  if (t.pinAnchor && t.pinAnchor.isRed && t.pinAnchor.fuseStarted) {
+    const elapsed = world.timeSec - t.pinAnchor.fuseStartSec;
+    if (elapsed >= RED_ANCHOR_VANISH_DELAY) {
+      if (world.activeAnchor === t.pinAnchor) {
+        world.lastReleasedAnchor = t.pinAnchor;
+        world.breakFlash = cfg.breakFlashDuration;
+        world.activeAnchor = null;
+        world.state = "launched";
+        world.hookCooldown = Math.max(world.hookCooldown, cfg.rehookCooldown);
+        world.hasHookedSinceLaunch = false;
+      }
+      t.hiddenUntilSec = world.timeSec + RED_ANCHOR_RESPAWN_DELAY;
+      t.pinAnchor.fuseStarted = false;
+      t.pinAnchor.fuseStartSec = 0;
+    }
+  }
+
+  t.pinOffset += t.pinDir * t.pinSpeed * dt;
+  if (t.pinOffset > t.travelHalf) {
+    t.pinOffset = t.travelHalf;
+    t.pinDir = -1;
+  } else if (t.pinOffset < -t.travelHalf) {
+    t.pinOffset = -t.travelHalf;
+    t.pinDir = 1;
+  }
+
+  const pinX = t.x + t.pinOffset;
+  t.pinAnchor.x = pinX;
+  t.pinAnchor.y = t.y;
+  t.pinAnchor.radius = t.pinRadius;
+}
+
+function checkMovingTrackHit() {
+  if (!TRACK_ENABLED || !world.movingTrack) return;
+  if (world.hookCooldown > 0) return;
+  if (world.hasHookedSinceLaunch) return;
+  if (world.state === "gameover" || world.state === "dying") return;
+  if (world.state !== "launched" && world.state !== "tethered") return;
+  const t = world.movingTrack;
+  if (!t.activated) return;
+  if (world.timeSec < t.hiddenUntilSec) return;
+  if (!t.pinAnchor) return;
+  if (world.activeAnchor === t.pinAnchor) return;
+  const hitRadius = cfg.ballRadius + cfg.hookRadius + t.pinAnchor.radius;
+  const d = Math.hypot(world.ball.x - t.pinAnchor.x, world.ball.y - t.pinAnchor.y);
+  if (d <= hitRadius) {
+    hookToAnchor(t.pinAnchor);
+  }
+}
+
+function checkGearHit() {
+  if (!GEAR_ENABLED) return;
+  if (!world.gears.length) return;
+  if (world.state === "gameover" || world.state === "dying") return;
+  for (const g of world.gears) {
+    const hitRadius = g.radius + cfg.ballRadius - g.toothDepth * 0.35;
+    const d = Math.hypot(world.ball.x - g.x, world.ball.y - g.y);
+    if (d <= hitRadius) {
+      startDeathFx(toScreenX(world.ball.x), toScreenY(world.ball.y));
+      return;
+    }
+  }
+}
+
 function ensureAnchorsCoverage() {
   const targetTop = world.cameraY - world.h * 2.4;
-  while (world.generatedTopY > targetTop) addAnchorAbove();
+  while (world.generatedTopY > targetTop) addGeneratedSlotAbove();
 
   const pruneBottom = world.cameraY + world.h * 2.2;
   world.anchors = world.anchors.filter(
     (a) => a === world.activeAnchor || a === world.lastReleasedAnchor || a.y < pruneBottom,
   );
+
+  const gearPruneBottom = world.cameraY + world.h * 1.8;
+  world.gears = world.gears.filter((g) => g.y < gearPruneBottom);
 }
 
 function updateMeters() {
@@ -720,44 +1417,49 @@ function getJuicePalette() {
 }
 
 function spawnJuiceBurstParticle(fx, originX, originY, palette, big = false) {
-  const angle = -Math.PI * 0.5 + rand(-deathFxCfg.spreadAngle, deathFxCfg.spreadAngle);
-  const speed = (big ? rand(deathFxCfg.bigSpeedMin, deathFxCfg.bigSpeedMax) : rand(deathFxCfg.smallSpeedMin, deathFxCfg.smallSpeedMax)) * 1.78;
+  const angle = -Math.PI * 0.5 + rand(-deathFxCfg.spreadAngle, deathFxCfg.spreadAngle) * 0.6;
+  const speed = (big ? rand(deathFxCfg.bigSpeedMin, deathFxCfg.bigSpeedMax) : rand(deathFxCfg.smallSpeedMin, deathFxCfg.smallSpeedMax)) * 1.08;
   const scale = big ? rand(1.05, 1.9) : rand(0.35, 0.8);
   fx.burstParticles.push({
-    x: originX + rand(-10, 10),
-    y: originY + rand(-10, 6),
+    x: originX + rand(-7, 7),
+    y: originY + rand(-8, 4),
     vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed - rand(60, 180),
+    vy: Math.sin(angle) * speed - rand(40, 130),
     gravity: rand(deathFxCfg.gravityMin, deathFxCfg.gravityMax),
     drag: rand(0.92, 0.965),
     life: rand(deathFxCfg.particleLifeMin, deathFxCfg.particleLifeMax),
     color: palette[randInt(0, palette.length - 1)],
     alpha: big ? rand(0.72, 0.9) : rand(0.45, 0.72),
     scale,
-    radius: (big ? rand(deathFxCfg.bigRadiusMin, deathFxCfg.bigRadiusMax) : rand(deathFxCfg.smallRadiusMin, deathFxCfg.smallRadiusMax)) * scale,
+    radius: (big ? rand(deathFxCfg.bigRadiusMin, deathFxCfg.bigRadiusMax) : rand(deathFxCfg.smallRadiusMin, deathFxCfg.smallRadiusMax)) * scale * 2,
     floorY: fx.floorY - rand(0, 10),
   });
 }
 
 function createJuiceSplat(x, y, color, alpha, scale = 1, options = {}) {
   const cluster = options.cluster !== false;
+  const lobeMin = Number.isFinite(options.lobeMin) ? options.lobeMin : 4;
+  const lobeMax = Number.isFinite(options.lobeMax) ? options.lobeMax : 9;
+  const dotMin = Number.isFinite(options.dotMin) ? options.dotMin : (cluster ? 3 : 0);
+  const dotMax = Number.isFinite(options.dotMax) ? options.dotMax : (cluster ? 7 : 0);
   if (!cluster) {
+    const radius = rand(6, 12) * scale;
     return {
       x,
       y,
       color,
-      alpha,
-      radius: rand(6, 12) * scale,
+      alpha: 0.8,
+      radius,
       age: 0,
       life: rand(0.7, 1.1),
       grow: rand(1.02, 1.14),
       lobes: [],
-      dripCount: 0,
+      dripDots: [],
     };
   }
 
   const lobes = [];
-  const lobeCount = randInt(4, 9);
+  const lobeCount = randInt(Math.min(lobeMin, lobeMax), Math.max(lobeMin, lobeMax));
   for (let i = 0; i < lobeCount; i += 1) {
     const angle = rand(0, Math.PI * 2);
     const dist = rand(10, 34) * scale;
@@ -768,70 +1470,126 @@ function createJuiceSplat(x, y, color, alpha, scale = 1, options = {}) {
     });
   }
 
+  const radius = rand(16, 34) * scale;
+  const dripDots = [];
+  const dotCount = randInt(Math.max(0, Math.min(dotMin, dotMax)), Math.max(0, Math.max(dotMin, dotMax)));
+  for (let i = 0; i < dotCount; i += 1) {
+    const angle = rand(0, Math.PI * 2);
+    const dist = radius * rand(0.82, 1.62);
+    dripDots.push({
+      x: Math.cos(angle) * dist,
+      y: Math.sin(angle) * dist * rand(0.7, 1.24),
+      r: rand(2.4, 5.8) * scale,
+    });
+  }
+
   return {
     x,
     y,
     color,
-    alpha,
-    radius: rand(16, 34) * scale,
+    alpha: 0.8,
+    radius,
     age: 0,
     life: rand(0.82, 1.35),
     grow: rand(1.18, 1.6),
     lobes,
-    dripCount: randInt(3, 7),
+    dripDots,
   };
 }
 
-function startDeathFx(originX, originY) {
+function spawnGroundJuiceSpread(fx, centerX, floorY, palette, intensity = 1, options = {}) {
+  const baseScale = Math.max(0.2, intensity);
+  const yDir = options.yDir === -1 ? -1 : 1;
+  const nearMin = Number.isFinite(options.nearMin) ? options.nearMin : 16;
+  const nearMax = Number.isFinite(options.nearMax) ? options.nearMax : Math.min(130, world.h * 0.28);
+  const mainBlobCount = randInt(1, 2);
+  for (let i = 0; i < mainBlobCount; i += 1) {
+    const mainX = clamp(centerX + rand(-38, 38), 12, world.w - 12);
+    const mainY = clamp(floorY + yDir * rand(nearMin, nearMax), 12, world.h - 8);
+    const mainColor = palette[randInt(0, palette.length - 1)];
+    const mainScale = rand(0.76, 1.2) * baseScale;
+    fx.splats.push(
+      createJuiceSplat(mainX, mainY, mainColor, 1, mainScale, {
+        cluster: true,
+        lobeMin: 3,
+        lobeMax: 5,
+        dotMin: 6,
+        dotMax: 8,
+      }),
+    );
+
+    const attachCount = randInt(3, 5);
+    for (let j = 0; j < attachCount; j += 1) {
+      const angle = rand(0, Math.PI * 2);
+      const dist = rand(12, 44);
+      const attachX = clamp(mainX + Math.cos(angle) * dist, 10, world.w - 10);
+      const attachY = clamp(mainY + Math.sin(angle) * dist * 0.72, 10, world.h - 8);
+      fx.splats.push(
+        createJuiceSplat(attachX, attachY, mainColor, 1, rand(0.32, 0.62) * baseScale, {
+          cluster: false,
+          dotMin: 0,
+          dotMax: 0,
+        }),
+      );
+    }
+  }
+}
+
+function startDeathFx(originX, originY, options = {}) {
+  const previewOnly = options.previewOnly === true;
   normalizeDeathFxCfg();
   const palette = getJuicePalette();
   const fx = createEmptyDeathFx();
-  const impactX = originX;
-  const impactY = originY;
-  const floorY = clamp(impactY + cfg.ballRadius * 0.55, impactY, world.h - 6);
+  const safeEdge = 18;
+  const impactX = clamp(originX, safeEdge, world.w - safeEdge);
+  const impactY = clamp(originY, 18, world.h - 18);
+  const floorY = clamp(impactY + cfg.ballRadius * 0.68, impactY + 4, world.h - 6);
   fx.active = true;
+  fx.previewOnly = previewOnly;
   fx.timer = deathFxCfg.fxDuration + deathFxCfg.cooldown;
   fx.originX = impactX;
   fx.originY = impactY;
   fx.floorY = floorY;
 
+  const topBand = world.h * 0.24;
+  const bottomBand = world.h * 0.76;
+  const yDir = impactY > bottomBand ? -1 : 1;
+  const isNearEdge = impactY < topBand || impactY > bottomBand;
+  const nearMin = isNearEdge ? 8 : 6;
+  const nearMax = isNearEdge ? Math.min(72, world.h * 0.16) : Math.min(56, world.h * 0.12);
+
+  // 保底：死亡点本身一定有一坨可见污渍（避免只在偏移区域出现）
+  const impactColor = palette[randInt(0, palette.length - 1)];
   fx.splats.push(
     createJuiceSplat(
-      impactX + rand(-8, 8),
-      impactY + rand(-4, 4),
-      palette[randInt(0, palette.length - 1)],
-      rand(0.03, 0.06),
-      rand(deathFxCfg.mainSplatScaleMin, deathFxCfg.mainSplatScaleMax),
-      { cluster: false },
+      impactX,
+      impactY,
+      impactColor,
+      1,
+      0.88,
+      {
+        cluster: true,
+        lobeMin: 3,
+        lobeMax: 5,
+        dotMin: 4,
+        dotMax: 6,
+      },
     ),
   );
 
-  for (let i = 0; i < deathFxCfg.bigBurstCount; i += 1) spawnJuiceBurstParticle(fx, impactX, impactY, palette, true);
-  for (let i = 0; i < deathFxCfg.smallBurstCount; i += 1) spawnJuiceBurstParticle(fx, impactX, impactY, palette, false);
-
-  for (let i = 0; i < deathFxCfg.sideSplatCount; i += 1) {
-    const angle = -Math.PI * 0.5 + rand(-deathFxCfg.spreadAngle * 0.8, deathFxCfg.spreadAngle * 0.8);
-    const dist = rand(140, 280);
-    fx.splats.push(
-      createJuiceSplat(
-        impactX + Math.cos(angle) * dist,
-        impactY + Math.sin(angle) * dist * 0.96,
-        palette[randInt(0, palette.length - 1)],
-        rand(0.12, 0.2),
-        rand(deathFxCfg.sideSplatScaleMin, deathFxCfg.sideSplatScaleMax),
-        { cluster: false },
-      ),
-    );
-  }
+  // 仅保留一段“死亡点附近”扩散，不再做更下方铺层
+  spawnGroundJuiceSpread(fx, impactX, impactY, palette, 1.2, { yDir, nearMin, nearMax });
 
   world.deathFx = fx;
-  world.state = "dying";
-  world.dragging = false;
-  world.pointerId = null;
-  world.lookDir.x = 0;
-  world.lookDir.y = 0;
-  world.ball.vx = 0;
-  world.ball.vy = 0;
+  if (!previewOnly) {
+    world.state = "dying";
+    world.dragging = false;
+    world.pointerId = null;
+    world.lookDir.x = 0;
+    world.lookDir.y = 0;
+    world.ball.vx = 0;
+    world.ball.vy = 0;
+  }
 }
 
 function updateDeathFx(dt) {
@@ -848,17 +1606,16 @@ function updateDeathFx(dt) {
     p.x += p.vx * dt;
     p.y += p.vy * dt;
 
+    const pxEdge = 10;
+    if (p.x < pxEdge) {
+      p.x = pxEdge;
+      if (p.vx < 0) p.vx *= -0.22;
+    } else if (p.x > world.w - pxEdge) {
+      p.x = world.w - pxEdge;
+      if (p.vx > 0) p.vx *= -0.22;
+    }
+
     if (p.y + p.radius >= p.floorY || p.life <= 0) {
-      fx.splats.push(
-        createJuiceSplat(
-          p.x,
-          p.floorY - rand(0, 4),
-          p.color,
-          p.alpha * 0.96,
-          p.scale * rand(deathFxCfg.burstToSplatScaleMin, deathFxCfg.burstToSplatScaleMax),
-          { cluster: false },
-        ),
-      );
       fx.burstParticles.splice(i, 1);
     }
   }
@@ -871,7 +1628,7 @@ function updateDeathFx(dt) {
 
   if (fx.timer <= 0 && fx.burstParticles.length === 0) {
     fx.active = false;
-    world.state = "gameover";
+    if (!fx.previewOnly) world.state = "gameover";
   }
 }
 
@@ -893,14 +1650,14 @@ function collideBounds() {
     b.x = r;
     b.vx = -b.vx * cfg.restitution;
     b.vy *= cfg.wallFriction;
-    if (impact > 120) kickJelly(Math.min(0.42, impact / 1400), Math.min(0.34, impact / 1800));
+    if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
   }
   if (b.x > world.w - r) {
     const impact = Math.abs(b.vx);
     b.x = world.w - r;
     b.vx = -b.vx * cfg.restitution;
     b.vy *= cfg.wallFriction;
-    if (impact > 120) kickJelly(Math.min(0.42, impact / 1400), Math.min(0.34, impact / 1800));
+    if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
   }
   const top = world.cameraY + r;
   if (b.y < top) {
@@ -908,15 +1665,23 @@ function collideBounds() {
     b.y = top;
     b.vy = -b.vy * cfg.restitution;
     b.vx *= cfg.wallFriction;
-    if (impact > 120) kickJelly(Math.min(0.36, impact / 1500), Math.min(0.3, impact / 1900));
+    if (impact > 80) kickJelly(Math.min(0.54, 0.16 + impact / 1200), Math.min(0.48, 0.14 + impact / 1550));
   }
 }
 
 function update(dt) {
+  world.timeSec += dt;
+  updateGear(dt);
+  updateMovingTrack(dt);
+  if (world.deathFx.active && world.deathFx.previewOnly) {
+    updateDeathFx(dt);
+  }
   if (world.state === "dying") {
     updateDeathFx(dt);
     return;
   }
+
+  updateAnchorFuse();
 
   const draggingAim = world.dragging && world.state === "aiming";
   if (draggingAim) {
@@ -943,6 +1708,13 @@ function update(dt) {
     applyTetheredPhysics(dt);
     checkAnchorHook();
   } else if (world.state === "gameover") {
+    return;
+  }
+
+  checkGearHit();
+  checkMovingTrackHit();
+  if (world.state === "dying") {
+    updateDeathFx(dt);
     return;
   }
 
@@ -1023,10 +1795,161 @@ function drawVerticalCapsulePath(x, y, width, height) {
   ctx.closePath();
 }
 
-function getAnchorVisualStyle(anchor) {
-  return anchor.id % 2 === 0
-    ? { core: "#ff5046", coreDark: "#d9362c", rimLight: "#fff5eb", rimDark: "#bb9a78" }
-    : { core: "#37a9ff", coreDark: "#167fe0", rimLight: "#fff7ef", rimDark: "#b59a79" };
+function drawHorizontalCapsulePath(x, y, width, height) {
+  const r = height * 0.5;
+  const leftCx = x - width * 0.5 + r;
+  const rightCx = x + width * 0.5 - r;
+  ctx.beginPath();
+  ctx.arc(rightCx, y, r, -Math.PI * 0.5, Math.PI * 0.5, false);
+  ctx.lineTo(leftCx, y + r);
+  ctx.arc(leftCx, y, r, Math.PI * 0.5, Math.PI * 1.5, false);
+  ctx.closePath();
+}
+
+function drawMovingTrack() {
+  if (!TRACK_ENABLED || !world.movingTrack) return;
+  const t = world.movingTrack;
+  if (!t.activated) return;
+  const sx = toScreenX(t.x);
+  const sy = toScreenY(t.y);
+  const offPad = Math.max(80, t.width * 0.6);
+  if (sx < -offPad || sx > world.w + offPad || sy < -120 || sy > world.h + 120) return;
+
+  const pinVisible = world.timeSec >= t.hiddenUntilSec;
+  const pinSX = sx + t.pinOffset;
+  const slotH = t.height * 0.56;
+
+  ctx.save();
+  ctx.fillStyle = "#94a3b8";
+  drawHorizontalCapsulePath(sx, sy, t.width, t.height);
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#334155";
+  drawHorizontalCapsulePath(sx, sy, t.width, t.height);
+  ctx.stroke();
+
+  ctx.fillStyle = "#1e293b";
+  drawHorizontalCapsulePath(sx, sy, t.width - 8, slotH);
+  ctx.fill();
+
+  const lane = ctx.createLinearGradient(sx, sy - slotH * 0.5, sx, sy + slotH * 0.5);
+  lane.addColorStop(0, "rgba(125, 211, 252, 0.25)");
+  lane.addColorStop(1, "rgba(59, 130, 246, 0.32)");
+  ctx.fillStyle = lane;
+  drawHorizontalCapsulePath(sx, sy, t.width - 16, slotH - 6);
+  ctx.fill();
+
+  if (pinVisible && t.pinAnchor) {
+    const pinFuse = getAnchorFuseState(t.pinAnchor);
+    ctx.save();
+    ctx.translate(pinSX, sy);
+    ctx.globalAlpha = pinFuse.alpha;
+    const pinStyle = getAnchorVisualStyle(t.pinAnchor, pinFuse.flash);
+  const pinAnchorRadius = Math.max(6, t.pinRadius - 4);
+  const outerR = pinAnchorRadius + 10;
+  const ringR = outerR - 4;
+  const coreR = outerR - 8.5;
+
+  ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 4;
+  const rim = ctx.createLinearGradient(-outerR, -outerR, outerR, outerR);
+  rim.addColorStop(0, pinStyle.rimLight);
+  rim.addColorStop(1, pinStyle.rimDark);
+  ctx.fillStyle = rim;
+  ctx.beginPath();
+  ctx.arc(0, 0, outerR, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowColor = "transparent";
+  ctx.fillStyle = "rgba(86, 64, 41, 0.18)";
+  ctx.beginPath();
+  ctx.arc(0, 1, ringR, 0, Math.PI * 2);
+  ctx.fill();
+
+  const plate = ctx.createRadialGradient(-4, -5, 3, 0, 0, ringR);
+  plate.addColorStop(0, "#fffef6");
+  plate.addColorStop(1, "#e9d8c2");
+  ctx.fillStyle = plate;
+  ctx.beginPath();
+  ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+  ctx.fill();
+
+  const core = ctx.createRadialGradient(-3, -3, 2, 0, 0, coreR);
+  core.addColorStop(0, "#ffffff");
+  core.addColorStop(0.16, pinStyle.core);
+  core.addColorStop(1, pinStyle.coreDark);
+  ctx.fillStyle = core;
+  ctx.beginPath();
+  ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = pinStyle.highlight;
+  ctx.beginPath();
+  ctx.arc(-coreR * 0.28, -coreR * 0.32, coreR * 0.35, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (t.pinAnchor.isRed && pinFuse.flash > 0.001) {
+    const glow = ctx.createRadialGradient(0, 0, coreR * 0.15, 0, 0, outerR + 4);
+    glow.addColorStop(0, `rgba(255, 255, 255, ${0.92 * pinFuse.flash})`);
+    glow.addColorStop(0.52, `rgba(255, 255, 255, ${0.44 * pinFuse.flash})`);
+    glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, outerR + 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function getAnchorVisualStyle(anchor, flash = 0) {
+  if (!anchor.isRed) {
+    return {
+      core: "#2ca7ff",
+      coreDark: "#0f73d4",
+      rimLight: "#fff7ef",
+      rimDark: "#b59a79",
+      highlight: "rgba(255,255,255,0.48)",
+    };
+  }
+
+  const w = clamp01(flash);
+  return {
+    core: mixRgb([255, 18, 18], [255, 255, 255], w),
+    coreDark: mixRgb([176, 0, 0], [214, 214, 214], w * 0.92),
+    rimLight: mixRgb([255, 239, 233], [255, 255, 255], w * 0.75),
+    rimDark: mixRgb([187, 154, 120], [205, 205, 205], w * 0.68),
+    highlight: `rgba(255,255,255,${0.52 + 0.38 * w})`,
+  };
+}
+
+function getAnchorFuseState(anchor) {
+  if (!anchor.isRed || !anchor.fuseStarted) {
+    return { alpha: 1, flash: 0 };
+  }
+  const elapsed = world.timeSec - anchor.fuseStartSec;
+  if (elapsed <= RED_ANCHOR_BLINK_DELAY) {
+    return { alpha: 1, flash: 0 };
+  }
+  const blinkElapsed = Math.max(0, elapsed - RED_ANCHOR_BLINK_DELAY);
+  const blinkDuration = Math.max(0.0001, RED_ANCHOR_VANISH_DELAY - RED_ANCHOR_BLINK_DELAY);
+  const t = clamp01(blinkElapsed / blinkDuration);
+  let period = RED_ANCHOR_BLINK_PERIOD_START;
+  let accel = 0;
+  if (t > RED_ANCHOR_BLINK_ACCEL_START) {
+    const fastT = (t - RED_ANCHOR_BLINK_ACCEL_START) / Math.max(0.0001, 1 - RED_ANCHOR_BLINK_ACCEL_START);
+    accel = Math.pow(clamp01(fastT), 1.8);
+    period = lerp(RED_ANCHOR_BLINK_PERIOD_START, RED_ANCHOR_BLINK_PERIOD_END, accel);
+  }
+  const phase = (blinkElapsed / Math.max(0.001, period)) % 1;
+  const isOn = phase < 0.5;
+  const alpha = isOn ? 1 : lerp(0.78, 0.66, accel);
+  const flash = isOn ? 1 : 0;
+  return { alpha, flash };
 }
 
 function getBallVisualRadius() {
@@ -1067,20 +1990,60 @@ function drawRubberBand() {
     const sy1 = startBaseY + py * startSep * dir;
     const ex = topCenterX + px * endSep * dir;
     const ey = topCenterY + py * endSep * dir;
+    const cx = lerp(sx, ex, 0.56) - ux * ballR * 0.08;
+    const cy = lerp(sy1, ey, 0.56) - uy * ballR * 0.08;
+
+    const startHalf = strapWidth * 0.55;
+    const midHalf = strapWidth * 0.5;
+    const endHalf = Math.max(2.2, strapWidth * 0.46);
+    const midX = (sx + ex + cx) / 3;
+    const midY = (sy1 + ey + cy) / 3;
 
     ctx.save();
     ctx.lineCap = "round";
+    ctx.lineJoin = "round";
     ctx.shadowColor = "transparent";
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
-    ctx.strokeStyle = "#1f1f1f";
-    ctx.lineWidth = strapWidth;
-    const cx = lerp(sx, ex, 0.56) - ux * ballR * 0.08;
-    const cy = lerp(sy1, ey, 0.56) - uy * ballR * 0.08;
+
+    const ropeGrad = ctx.createLinearGradient(
+      midX - px * strapWidth * 0.7,
+      midY - py * strapWidth * 0.7,
+      midX + px * strapWidth * 0.7,
+      midY + py * strapWidth * 0.7,
+    );
+    ropeGrad.addColorStop(0, ballVisualCfg.colorD || "#7aa90f");
+    ropeGrad.addColorStop(0.35, ballVisualCfg.colorC || "#acd726");
+    ropeGrad.addColorStop(0.7, ballVisualCfg.colorB || "#d8f55d");
+    ropeGrad.addColorStop(1, ballVisualCfg.colorA || "#f4ff9a");
+
+    ctx.globalAlpha = 0.92 - stretchRatio * 0.08;
+    ctx.fillStyle = ropeGrad;
     ctx.beginPath();
-    ctx.moveTo(sx, sy1);
-    ctx.quadraticCurveTo(cx, cy, ex, ey);
+    ctx.moveTo(sx - px * startHalf, sy1 - py * startHalf);
+    ctx.quadraticCurveTo(cx - px * midHalf, cy - py * midHalf, ex - px * endHalf, ey - py * endHalf);
+    ctx.lineTo(ex + px * endHalf, ey + py * endHalf);
+    ctx.quadraticCurveTo(cx + px * midHalf, cy + py * midHalf, sx + px * startHalf, sy1 + py * startHalf);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.globalAlpha = 0.36;
+    ctx.strokeStyle = "rgba(255,255,255,0.9)";
+    ctx.lineWidth = Math.max(1.2, strapWidth * 0.24);
+    ctx.beginPath();
+    ctx.moveTo(sx - px * startHalf * 0.42, sy1 - py * startHalf * 0.42);
+    ctx.quadraticCurveTo(cx - px * midHalf * 0.44, cy - py * midHalf * 0.44, ex - px * endHalf * 0.36, ey - py * endHalf * 0.36);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.78;
+    ctx.strokeStyle = ballVisualCfg.outlineColor || "#f8ffbc";
+    ctx.lineWidth = Math.max(0.9, strapWidth * 0.1);
+    ctx.beginPath();
+    ctx.moveTo(sx - px * startHalf, sy1 - py * startHalf);
+    ctx.quadraticCurveTo(cx - px * midHalf, cy - py * midHalf, ex - px * endHalf, ey - py * endHalf);
+    ctx.moveTo(sx + px * startHalf, sy1 + py * startHalf);
+    ctx.quadraticCurveTo(cx + px * midHalf, cy + py * midHalf, ex + px * endHalf, ey + py * endHalf);
     ctx.stroke();
     ctx.restore();
   }
@@ -1094,13 +2057,16 @@ function drawAnchors() {
     if (sx < -80 || sx > world.w + 80 || sy < -80 || sy > world.h + 80) continue;
 
     const isActive = a === world.activeAnchor;
+    const fuse = getAnchorFuseState(a);
+    const fuseAlpha = fuse.alpha;
     const pulse = isActive ? 1 + world.hookFlash * 4 : 1;
-    const style = getAnchorVisualStyle(a);
+    const style = getAnchorVisualStyle(a, fuse.flash);
     const outerR = a.radius + 10;
     const ringR = outerR - 4;
     const coreR = outerR - 8.5;
 
     ctx.save();
+    ctx.globalAlpha = fuseAlpha;
     ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
     ctx.shadowBlur = 10;
     ctx.shadowOffsetX = 0;
@@ -1136,19 +2102,86 @@ function drawAnchors() {
     ctx.arc(sx, sy, coreR, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = "rgba(255,255,255,0.48)";
+    ctx.fillStyle = style.highlight;
     ctx.beginPath();
     ctx.arc(sx - coreR * 0.28, sy - coreR * 0.32, coreR * 0.35, 0, Math.PI * 2);
     ctx.fill();
+
+    if (a.isRed && fuse.flash > 0.001) {
+      const glow = ctx.createRadialGradient(sx, sy, coreR * 0.15, sx, sy, outerR + 4);
+      glow.addColorStop(0, `rgba(255, 255, 255, ${0.92 * fuse.flash})`);
+      glow.addColorStop(0.52, `rgba(255, 255, 255, ${0.44 * fuse.flash})`);
+      glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(sx, sy, outerR + 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
 
     if (isActive) {
-      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.9, 0.4 + world.hookFlash * 2)})`;
+      ctx.strokeStyle = `rgba(255,255,255,${Math.min(0.9, 0.4 + world.hookFlash * 2) * fuseAlpha})`;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.arc(sx, sy, outerR + pulse * 4, 0, Math.PI * 2);
       ctx.stroke();
     }
+  }
+}
+
+function drawGearHazard() {
+  if (!GEAR_ENABLED) return;
+  for (const g of world.gears) {
+    const sx = toScreenX(g.x);
+    const sy = toScreenY(g.y);
+    if (sx < -120 || sx > world.w + 120 || sy < -120 || sy > world.h + 120) continue;
+
+    const outerR = g.radius;
+    const toothR = outerR + g.toothDepth;
+    const midR = outerR * 0.82;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(g.angle);
+
+    const metal = ctx.createLinearGradient(-toothR, -toothR, toothR, toothR);
+    metal.addColorStop(0, "#f8fafc");
+    metal.addColorStop(0.45, "#cbd5e1");
+    metal.addColorStop(1, "#64748b");
+    ctx.fillStyle = metal;
+    ctx.beginPath();
+    for (let i = 0; i < GEAR_TEETH * 2; i += 1) {
+      const angle = (i / (GEAR_TEETH * 2)) * Math.PI * 2;
+      const r = i % 2 === 0 ? toothR : outerR;
+      const x = Math.cos(angle) * r;
+      const y = Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    const rim = ctx.createRadialGradient(-midR * 0.2, -midR * 0.2, 2, 0, 0, midR);
+    rim.addColorStop(0, "#e2e8f0");
+    rim.addColorStop(1, "#475569");
+    ctx.fillStyle = rim;
+    ctx.beginPath();
+    ctx.arc(0, 0, midR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#0f172a";
+    ctx.beginPath();
+    ctx.arc(0, 0, g.innerRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, midR * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
   }
 }
 
@@ -1176,7 +2209,7 @@ function drawDeathFx() {
   for (const splat of fx.splats) {
     const t = clamp01(splat.age / Math.max(0.0001, splat.life));
     const pop = 1 - Math.pow(1 - Math.min(1, t * 2.8), 3);
-    const alpha = splat.alpha * (1 - t * 0.52);
+    const alpha = splat.alpha;
     const scale = lerp(0.18, splat.grow, pop);
     if (alpha <= 0.01) continue;
 
@@ -1204,11 +2237,10 @@ function drawDeathFx() {
 
     ctx.fillStyle = splat.color;
     ctx.globalAlpha = alpha * 0.82;
-    for (let i = 0; i < splat.dripCount; i += 1) {
-      const dripX = lerp(-splat.radius * 1.1, splat.radius * 1.1, (i + 1) / (splat.dripCount + 1));
-      const dripY = splat.radius * (0.9 + (i % 2) * 0.28) * scale;
+    const dripDots = Array.isArray(splat.dripDots) ? splat.dripDots : [];
+    for (const dot of dripDots) {
       ctx.beginPath();
-      ctx.arc(dripX, dripY, (3.4 + i * 0.8) * scale, 0, Math.PI * 2);
+      ctx.arc(dot.x * scale, dot.y * scale, dot.r * scale, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -1232,6 +2264,7 @@ function drawBall() {
     wobbleOffset: Math.sin(world.jellyPhase) * world.jellyWobble,
     lookDirX: world.lookDir.x,
     lookDirY: world.lookDir.y,
+    faceMode: world.state === "launched" ? "flight_squint" : "normal",
     cfg: ballVisualCfg,
   });
 }
@@ -1265,6 +2298,8 @@ function drawGameOver() {
 
 function draw() {
   drawBackground();
+  drawMovingTrack();
+  drawGearHazard();
   drawRubberBand();
   drawAnchors();
   drawBall();
@@ -1289,10 +2324,71 @@ function tick(t) {
   requestAnimationFrame(tick);
 }
 
+loadJellyCfgFromStorage();
 buildDebugPanel();
+buildDeathFxDebugPanel();
+buildJellyDebugPanel();
 syncPanelFromCfg();
+syncDeathFxPanelFromCfg();
+syncJellyPanelFromCfg();
 updateMeterHud();
 updateFpsHud();
+syncDebugPanelVisibility();
+syncDeathFxPanelVisibility();
+syncJellyPanelVisibility();
+
+if (debugToggleBtn) {
+  debugToggleBtn.addEventListener("click", () => {
+    const nextVisible = !debugPanelVisible;
+    debugPanelVisible = nextVisible;
+    if (nextVisible) deathFxPanelVisible = false;
+    if (nextVisible) jellyPanelVisible = false;
+    syncDebugPanelVisibility();
+    syncDeathFxPanelVisibility();
+    syncJellyPanelVisibility();
+  });
+}
+
+if (deathFxDebugToggleBtn) {
+  deathFxDebugToggleBtn.addEventListener("click", () => {
+    const nextVisible = !deathFxPanelVisible;
+    deathFxPanelVisible = nextVisible;
+    if (nextVisible) debugPanelVisible = false;
+    if (nextVisible) jellyPanelVisible = false;
+    syncDeathFxPanelVisibility();
+    syncDebugPanelVisibility();
+    syncJellyPanelVisibility();
+  });
+}
+
+if (jellyDebugToggleBtn) {
+  jellyDebugToggleBtn.addEventListener("click", () => {
+    const nextVisible = !jellyPanelVisible;
+    jellyPanelVisible = nextVisible;
+    if (nextVisible) debugPanelVisible = false;
+    if (nextVisible) deathFxPanelVisible = false;
+    syncJellyPanelVisibility();
+    syncDebugPanelVisibility();
+    syncDeathFxPanelVisibility();
+  });
+}
+
+if (deathFxPreviewBtn) {
+  deathFxPreviewBtn.addEventListener("click", () => {
+    if (world.state === "dying") {
+      setDeathFxStatus("死亡中无法预览，请稍后。");
+      return;
+    }
+    if (world.state !== "aiming" && world.state !== "gameover") {
+      setDeathFxStatus("请在瞄准或结算状态预览。");
+      return;
+    }
+    const originX = world.state === "gameover" ? world.w * 0.5 : toScreenX(world.ball.x);
+    const originY = world.state === "gameover" ? world.h * 0.78 : toScreenY(world.ball.y);
+    startDeathFx(originX, originY, { previewOnly: true });
+    setDeathFxStatus("已触发死亡特效预览。");
+  });
+}
 
 toggleAdvancedBtn.addEventListener("click", () => {
   showAdvancedParams = !showAdvancedParams;
@@ -1319,6 +2415,26 @@ defaultCfgBtn.addEventListener("click", () => {
   onCfgChanged("restLength");
   setStatus("已恢复默认参数（如需持久化请点保存）。");
 });
+
+if (deathFxDefaultBtn) {
+  deathFxDefaultBtn.addEventListener("click", () => {
+    Object.assign(deathFxCfg, window.DeathFx.defaultDeathFxCfg);
+    normalizeDeathFxCfg();
+    syncDeathFxPanelFromCfg();
+    setDeathFxStatus("已恢复死亡特效默认参数。");
+  });
+}
+
+if (jellyDefaultBtn) {
+  jellyDefaultBtn.addEventListener("click", () => {
+    for (const def of jellyParamDefs) {
+      cfg[def.key] = defaultCfg[def.key];
+    }
+    syncJellyPanelFromCfg();
+    saveJellyCfgToStorage();
+    setJellyStatus("已恢复果冻形变默认参数。");
+  });
+}
 
 window.addEventListener("resize", resize);
 canvas.addEventListener("pointerdown", onPointerDown);

@@ -121,9 +121,9 @@ const TRACK_GEAR_SPAWN_RATIO = 0.4;
 const HAZARD_DENSITY_START_METERS = 80;
 const HAZARD_DENSITY_FULL_METERS = 260;
 const defaultHazardCfg = {
-  baseTrackUnlockMeters: 22,
-  gearUnlockMeters: 47,
-  damageTrackUnlockMeters: 81,
+  baseTrackUnlockMeters: 30,
+  gearUnlockMeters: 60,
+  damageTrackUnlockMeters: 90,
   baseTrackSlotInterval: 3,
   baseTrackSpawnChance: 0.52,
   baseTrackSpawnChanceMax: 0.86,

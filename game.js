@@ -123,10 +123,10 @@ const defaultHazardCfg = {
   gearUnlockMeters: 34,
   trackGearUnlockMeters: 61,
   trackGearSpawnRatio: 0.4,
-  trackSlotInterval: 4,
+  trackSlotInterval: 3,
   trackSpawnChance: 0.75,
   trackSpawnChanceMax: 0.96,
-  gearSlotInterval: 4,
+  gearSlotInterval: 3,
   gearSpawnChance: 0.55,
   gearSpawnChanceMax: 0.85,
   hazardDensityStartMeters: 80,
@@ -3180,19 +3180,21 @@ function drawRubberBand() {
 
   const outerR = a.radius + 10;
   const ballR = getBallVisualRadius();
-  const topCenterX = ballSx - ux * (ballR * 0.98);
-  const topCenterY = ballSy - uy * (ballR * 0.98);
+  // 在果冻表面两侧取精确挂点，确保视觉上明确“挂在两边边缘”
+  const attachAngle = (Math.PI / 180) * 30;
+  const attachCos = Math.cos(attachAngle);
+  const attachSin = Math.sin(attachAngle);
+  const attachRadius = ballR * 0.995;
   const startBaseX = sx + ux * (outerR * 0.88);
   const startBaseY = sy + uy * (outerR * 0.88);
   const startSep = 4 + stretchRatio * 1.5;
-  const endSep = ballR * 0.34;
   const strapWidth = 7.8 - stretchRatio * 3.2;
 
   for (const dir of [-1, 1]) {
     const sx = startBaseX + px * startSep * dir;
     const sy1 = startBaseY + py * startSep * dir;
-    const ex = topCenterX + px * endSep * dir;
-    const ey = topCenterY + py * endSep * dir;
+    const ex = ballSx - ux * (attachRadius * attachCos) + px * (attachRadius * attachSin) * dir;
+    const ey = ballSy - uy * (attachRadius * attachCos) + py * (attachRadius * attachSin) * dir;
     const cx = lerp(sx, ex, 0.56) - ux * ballR * 0.08;
     const cy = lerp(sy1, ey, 0.56) - uy * ballR * 0.08;
 

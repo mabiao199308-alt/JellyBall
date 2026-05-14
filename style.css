@@ -66,23 +66,6 @@ body {
   text-shadow: 0 4px 18px rgba(15, 23, 42, 0.55);
 }
 
-.fps-display {
-  position: absolute;
-  left: calc(env(safe-area-inset-left, 0px) + 12px);
-  top: calc(env(safe-area-inset-top, 0px) + 12px);
-  z-index: 11;
-  padding: 6px 10px;
-  border-radius: 10px;
-  background: rgba(15, 23, 42, 0.58);
-  color: #dbeafe;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  backdrop-filter: blur(4px);
-  pointer-events: none;
-}
-
 .tutorial-overlay {
   position: absolute;
   inset: 0;

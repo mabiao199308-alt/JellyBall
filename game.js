@@ -1052,6 +1052,16 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+function getAimJellyStretchRatio() {
+  if (world.state !== "aiming" || !world.activeAnchor) return 0;
+  const dx = world.ball.x - world.activeAnchor.x;
+  const dy = world.ball.y - world.activeAnchor.y;
+  const dist = Math.hypot(dx, dy);
+  const range = Math.max(1, cfg.maxStretch - cfg.restLength);
+  const effectiveStretch = Math.max(0, dist - cfg.restLength);
+  return clamp01(effectiveStretch / range);
+}
+
 function mixRgb(a, b, t) {
   const clamped = clamp01(t);
   const r = Math.round(lerp(a[0], b[0], clamped));
@@ -1755,15 +1765,9 @@ function updateJellyState(dt) {
   const activeFactor = 1 - hangIdleBlend;
 
   if (world.dragging && world.state === "aiming" && world.activeAnchor) {
-    const dx = world.ball.x - world.activeAnchor.x;
-    const dy = world.ball.y - world.activeAnchor.y;
-    const dist = Math.hypot(dx, dy) || 0.0001;
-    const stretchRatio = Math.max(0, Math.min(1, dist / Math.max(1, cfg.maxStretch)));
-    const curve = Math.max(0.2, cfg.aimJellyCurve);
-    const fullStart = clamp01(cfg.aimJellyFullStart);
-    const nearFull = fullStart >= 0.999 ? 0 : clamp01((stretchRatio - fullStart) / (1 - fullStart));
-    const aimDeform = Math.min(1, Math.pow(stretchRatio, curve) * cfg.aimJellyMaxDeform + nearFull * cfg.aimJellyNearFullBoost);
-    const aimHoldWobble = nearFull * cfg.aimJellyHoldWobble;
+    const stretchRatio = getAimJellyStretchRatio();
+    const aimDeform = stretchRatio * clamp01(cfg.aimJellyMaxDeform);
+    const aimHoldWobble = stretchRatio * clamp01(cfg.aimJellyHoldWobble);
     if (aimDeform > world.jellyDeform) world.jellyDeform = aimDeform;
     if (aimHoldWobble > world.jellyWobble) world.jellyWobble = aimHoldWobble;
   }
@@ -2312,7 +2316,7 @@ function updateBestFireworks(dt) {
 
 function updateMeterHud() {
   if (meterDisplayEl) {
-    meterDisplayEl.textContent = `高度：${world.runMeters.toFixed(1)}`;
+    meterDisplayEl.textContent = `高度：${Math.round(world.runMeters)}米`;
   }
 }
 
@@ -2829,7 +2833,7 @@ function drawBackgroundBestMeterMark() {
   ctx.lineTo(markerEndX, sy);
   ctx.stroke();
 
-  ctx.fillText(`历史最高 ${bestMeters.toFixed(1)}m`, markerEndX, sy - 8);
+  ctx.fillText(`历史最高 ${Math.round(bestMeters)}m`, markerEndX, sy - 8);
   ctx.restore();
 }
 
@@ -3176,8 +3180,8 @@ function drawRubberBand() {
 
   const outerR = a.radius + 10;
   const ballR = getBallVisualRadius();
-  const topCenterX = ballSx - ux * (ballR * 0.82);
-  const topCenterY = ballSy - uy * (ballR * 0.82);
+  const topCenterX = ballSx - ux * (ballR * 0.98);
+  const topCenterY = ballSy - uy * (ballR * 0.98);
   const startBaseX = sx + ux * (outerR * 0.88);
   const startBaseY = sy + uy * (outerR * 0.88);
   const startSep = 4 + stretchRatio * 1.5;
@@ -3490,20 +3494,6 @@ function drawBall() {
   renderDeform *= 1 - idleBlend * 0.88;
   renderWobble *= activeBlend * activeBlend;
 
-  // 让“蓄力拉满按住”在渲染层有更强的可见形变，避免体感不明显
-  if (world.dragging && world.state === "aiming" && world.activeAnchor) {
-    const dx = world.ball.x - world.activeAnchor.x;
-    const dy = world.ball.y - world.activeAnchor.y;
-    const dist = Math.hypot(dx, dy) || 0.0001;
-    const stretchRatio = clamp01(dist / Math.max(1, cfg.maxStretch));
-    const fullStart = clamp01(cfg.aimJellyFullStart);
-    const nearFull = fullStart >= 0.999 ? 0 : clamp01((stretchRatio - fullStart) / (1 - fullStart));
-    const deformBonus = nearFull * (0.18 + cfg.aimJellyNearFullBoost * 0.95);
-    const wobbleBonus = nearFull * (0.08 + cfg.aimJellyHoldWobble * 0.55);
-    renderDeform = clamp01(renderDeform + deformBonus);
-    renderWobble += Math.sin(world.jellyPhase * 1.35) * wobbleBonus;
-  }
-
   window.BallVisual.drawJellyBall(ctx, {
     x: sx,
     y: sy,
@@ -3542,8 +3532,8 @@ function drawGameOver() {
   ctx.font = "bold 34px sans-serif";
   ctx.fillText("本局结束", world.w * 0.5, world.h * 0.42);
   ctx.font = "22px sans-serif";
-  ctx.fillText(`本局 ${world.runMeters.toFixed(1)}m`, world.w * 0.5, world.h * 0.5);
-  ctx.fillText(`最高 ${world.bestMeters.toFixed(1)}m`, world.w * 0.5, world.h * 0.56);
+  ctx.fillText(`本局 ${Math.round(world.runMeters)}m`, world.w * 0.5, world.h * 0.5);
+  ctx.fillText(`最高 ${Math.round(world.bestMeters)}m`, world.w * 0.5, world.h * 0.56);
   ctx.font = "16px sans-serif";
   ctx.fillText("点击任意位置重新挑战", world.w * 0.5, world.h * 0.64);
 }

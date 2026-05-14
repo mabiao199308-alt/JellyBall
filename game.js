@@ -1586,7 +1586,8 @@ function createMovingTrack() {
   const travelHalf = Math.max(40, width * 0.5 - 28);
   const pinX = world.w * 0.5;
   const pinRadius = Math.max(10, Math.min(14, height * 0.44));
-  const gearRadius = Math.max(20, Math.min(30, height * 0.95));
+  // 保持按轨道高度自适应，只把整体尺寸系数调大到“约 35”
+  const gearRadius = Math.max(22, Math.min(35, height * 1.1));
   return {
     x: world.w * 0.5,
     y: world.h * 0.75 - yOffset,

@@ -24,6 +24,7 @@ const hazardDebugPanel = document.getElementById("hazardDebugPanel");
 const hazardDebugToggleBtn = document.getElementById("hazardDebugToggleBtn");
 const hazardSaveBtn = document.getElementById("hazardSaveBtn");
 const hazardSaveAsDefaultBtn = document.getElementById("hazardSaveAsDefaultBtn");
+const hazardSaveCodeBtn = document.getElementById("hazardSaveCodeBtn");
 const hazardDefaultBtn = document.getElementById("hazardDefaultBtn");
 const hazardCfgStatus = document.getElementById("hazardCfgStatus");
 const toggleAdvancedBtn = document.getElementById("toggleAdvancedBtn");
@@ -102,18 +103,18 @@ const TRACK_GEAR_SPAWN_RATIO = 0.4;
 const HAZARD_DENSITY_START_METERS = 80;
 const HAZARD_DENSITY_FULL_METERS = 260;
 const defaultHazardCfg = {
-  trackUnlockMeters: TRACK_UNLOCK_METERS,
-  gearUnlockMeters: GEAR_UNLOCK_METERS,
-  trackGearUnlockMeters: TRACK_GEAR_UNLOCK_METERS,
-  trackGearSpawnRatio: TRACK_GEAR_SPAWN_RATIO,
-  trackSlotInterval: TRACK_SLOT_INTERVAL,
-  trackSpawnChance: TRACK_SPAWN_CHANCE,
-  trackSpawnChanceMax: TRACK_SPAWN_CHANCE_MAX,
-  gearSlotInterval: GEAR_SLOT_INTERVAL,
-  gearSpawnChance: GEAR_SPAWN_CHANCE,
-  gearSpawnChanceMax: GEAR_SPAWN_CHANCE_MAX,
-  hazardDensityStartMeters: HAZARD_DENSITY_START_METERS,
-  hazardDensityFullMeters: HAZARD_DENSITY_FULL_METERS,
+  trackUnlockMeters: 12,
+  gearUnlockMeters: 34,
+  trackGearUnlockMeters: 61,
+  trackGearSpawnRatio: 0.4,
+  trackSlotInterval: 4,
+  trackSpawnChance: 0.75,
+  trackSpawnChanceMax: 0.96,
+  gearSlotInterval: 4,
+  gearSpawnChance: 0.55,
+  gearSpawnChanceMax: 0.85,
+  hazardDensityStartMeters: 80,
+  hazardDensityFullMeters: 260,
 };
 const RED_ANCHOR_BLINK_DELAY = 0.5;
 const RED_ANCHOR_VANISH_DELAY = 3;
@@ -2094,7 +2095,7 @@ function updateMeters() {
 
 function updateMeterHud() {
   if (meterDisplayEl) {
-    meterDisplayEl.textContent = `米数：${world.runMeters.toFixed(1)}`;
+    meterDisplayEl.textContent = `高度：${world.runMeters.toFixed(1)}`;
   }
 }
 
@@ -3441,6 +3442,21 @@ if (hazardSaveAsDefaultBtn) {
       setHazardStatus("已写入代码默认值 + 本地默认值（全设备将使用这套默认）。");
     } else {
       setHazardStatus(`已保存本地默认值；代码默认值写入失败：${result.message}`);
+    }
+  });
+}
+
+if (hazardSaveCodeBtn) {
+  hazardSaveCodeBtn.addEventListener("click", async () => {
+    const payload = {};
+    for (const def of hazardParamDefs) {
+      payload[def.key] = hazardCfg[def.key];
+    }
+    const result = await saveCodeDefaultsToFile("hazard", payload);
+    if (result.ok) {
+      setHazardStatus("已保存到代码默认值（全员生效，需提交代码）。");
+    } else {
+      setHazardStatus(`保存到代码默认值失败：${result.message}`);
     }
   });
 }

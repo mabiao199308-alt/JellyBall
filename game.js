@@ -119,13 +119,15 @@ const TRACK_GEAR_SPAWN_RATIO = 0.4;
 const HAZARD_DENSITY_START_METERS = 80;
 const HAZARD_DENSITY_FULL_METERS = 260;
 const defaultHazardCfg = {
-  trackUnlockMeters: 12,
+  baseTrackUnlockMeters: 12,
   gearUnlockMeters: 34,
-  trackGearUnlockMeters: 61,
-  trackGearSpawnRatio: 0.4,
-  trackSlotInterval: 3,
-  trackSpawnChance: 0.75,
-  trackSpawnChanceMax: 0.96,
+  damageTrackUnlockMeters: 61,
+  baseTrackSlotInterval: 3,
+  baseTrackSpawnChance: 0.52,
+  baseTrackSpawnChanceMax: 0.86,
+  damageTrackSlotInterval: 4,
+  damageTrackSpawnChance: 0.4,
+  damageTrackSpawnChanceMax: 0.74,
   gearSlotInterval: 3,
   gearSpawnChance: 0.55,
   gearSpawnChanceMax: 0.85,
@@ -136,6 +138,7 @@ const RED_ANCHOR_BLINK_DELAY = 0.5;
 const RED_ANCHOR_VANISH_DELAY = 3;
 const RED_ANCHOR_RESPAWN_DELAY = 2;
 const RED_ANCHOR_CHANCE = 1 / 3;
+const FIRST_BLUE_ANCHOR_COUNT = 5;
 const RED_ANCHOR_BLINK_PERIOD_START = 0.5;
 const RED_ANCHOR_BLINK_PERIOD_END = 0.2;
 const RED_ANCHOR_BLINK_ACCEL_START = 0.36;
@@ -251,13 +254,15 @@ const deathFxParamDefs = [
 const deathFxIntegerKeys = new Set(["bigBurstCount", "smallBurstCount", "sideSplatCount"]);
 
 const hazardParamDefs = [
-  { key: "trackUnlockMeters", label: "轨道解锁米数", min: 0, max: 220, step: 1 },
+  { key: "baseTrackUnlockMeters", label: "基础轨道解锁", min: 0, max: 220, step: 1 },
   { key: "gearUnlockMeters", label: "齿轮解锁米数", min: 0, max: 260, step: 1 },
-  { key: "trackGearUnlockMeters", label: "轨道齿轮解锁", min: 0, max: 320, step: 1 },
-  { key: "trackGearSpawnRatio", label: "轨道齿轮占比", min: 0, max: 1, step: 0.01 },
-  { key: "trackSlotInterval", label: "轨道槽位间隔", min: 1, max: 10, step: 1 },
-  { key: "trackSpawnChance", label: "轨道基础概率", min: 0.05, max: 1, step: 0.01 },
-  { key: "trackSpawnChanceMax", label: "轨道最高概率", min: 0.05, max: 1, step: 0.01 },
+  { key: "damageTrackUnlockMeters", label: "伤害轨道解锁", min: 0, max: 320, step: 1 },
+  { key: "baseTrackSlotInterval", label: "基础轨道槽位", min: 1, max: 10, step: 1 },
+  { key: "baseTrackSpawnChance", label: "基础轨道概率", min: 0.05, max: 1, step: 0.01 },
+  { key: "baseTrackSpawnChanceMax", label: "基础轨道最高", min: 0.05, max: 1, step: 0.01 },
+  { key: "damageTrackSlotInterval", label: "伤害轨道槽位", min: 1, max: 10, step: 1 },
+  { key: "damageTrackSpawnChance", label: "伤害轨道概率", min: 0.05, max: 1, step: 0.01 },
+  { key: "damageTrackSpawnChanceMax", label: "伤害轨道最高", min: 0.05, max: 1, step: 0.01 },
   { key: "gearSlotInterval", label: "齿轮槽位间隔", min: 1, max: 10, step: 1 },
   { key: "gearSpawnChance", label: "齿轮基础概率", min: 0.05, max: 1, step: 0.01 },
   { key: "gearSpawnChanceMax", label: "齿轮最高概率", min: 0.05, max: 1, step: 0.01 },
@@ -265,10 +270,11 @@ const hazardParamDefs = [
   { key: "hazardDensityFullMeters", label: "增密满值米数", min: 10, max: 500, step: 1 },
 ];
 const hazardIntegerKeys = new Set([
-  "trackUnlockMeters",
+  "baseTrackUnlockMeters",
   "gearUnlockMeters",
-  "trackGearUnlockMeters",
-  "trackSlotInterval",
+  "damageTrackUnlockMeters",
+  "baseTrackSlotInterval",
+  "damageTrackSlotInterval",
   "gearSlotInterval",
   "hazardDensityStartMeters",
   "hazardDensityFullMeters",
@@ -347,7 +353,8 @@ const world = {
   pendingSafeAnchorSide: 0,
   movingTrack: null,
   trackLaneCursor: 0,
-  trackSlotsSinceSpawn: 0,
+  baseTrackSlotsSinceSpawn: 0,
+  damageTrackSlotsSinceSpawn: 0,
 
   cameraY: 0,
   cameraX: 0,
@@ -593,8 +600,11 @@ function normalizeHazardCfg() {
     if (hazardIntegerKeys.has(def.key)) v = Math.round(v);
     hazardCfg[def.key] = v;
   }
-  if (hazardCfg.trackSpawnChance > hazardCfg.trackSpawnChanceMax) {
-    [hazardCfg.trackSpawnChance, hazardCfg.trackSpawnChanceMax] = [hazardCfg.trackSpawnChanceMax, hazardCfg.trackSpawnChance];
+  if (hazardCfg.baseTrackSpawnChance > hazardCfg.baseTrackSpawnChanceMax) {
+    [hazardCfg.baseTrackSpawnChance, hazardCfg.baseTrackSpawnChanceMax] = [hazardCfg.baseTrackSpawnChanceMax, hazardCfg.baseTrackSpawnChance];
+  }
+  if (hazardCfg.damageTrackSpawnChance > hazardCfg.damageTrackSpawnChanceMax) {
+    [hazardCfg.damageTrackSpawnChance, hazardCfg.damageTrackSpawnChanceMax] = [hazardCfg.damageTrackSpawnChanceMax, hazardCfg.damageTrackSpawnChance];
   }
   if (hazardCfg.gearSpawnChance > hazardCfg.gearSpawnChanceMax) {
     [hazardCfg.gearSpawnChance, hazardCfg.gearSpawnChanceMax] = [hazardCfg.gearSpawnChanceMax, hazardCfg.gearSpawnChance];
@@ -609,6 +619,26 @@ function loadHazardCfgFromStorage() {
     const raw = localStorage.getItem(HAZARD_CFG_STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw);
+    if (Number.isFinite(Number(parsed.trackUnlockMeters))) {
+      hazardCfg.baseTrackUnlockMeters = Number(parsed.trackUnlockMeters);
+    }
+    if (Number.isFinite(Number(parsed.trackGearUnlockMeters))) {
+      hazardCfg.damageTrackUnlockMeters = Number(parsed.trackGearUnlockMeters);
+    }
+    if (Number.isFinite(Number(parsed.trackSlotInterval))) {
+      hazardCfg.baseTrackSlotInterval = Number(parsed.trackSlotInterval);
+    }
+    if (Number.isFinite(Number(parsed.trackSpawnChance))) {
+      hazardCfg.baseTrackSpawnChance = Number(parsed.trackSpawnChance);
+    }
+    if (Number.isFinite(Number(parsed.trackSpawnChanceMax))) {
+      hazardCfg.baseTrackSpawnChanceMax = Number(parsed.trackSpawnChanceMax);
+    }
+    if (Number.isFinite(Number(parsed.trackGearSpawnRatio))) {
+      const ratio = clamp(Number(parsed.trackGearSpawnRatio), 0, 1);
+      hazardCfg.damageTrackSpawnChance = Math.max(0.05, ratio);
+      hazardCfg.damageTrackSpawnChanceMax = Math.max(hazardCfg.damageTrackSpawnChance, ratio);
+    }
     for (const def of hazardParamDefs) {
       const val = Number(parsed[def.key]);
       if (Number.isFinite(val)) hazardCfg[def.key] = val;
@@ -1252,7 +1282,8 @@ function createAnchor(x, y, radius = 8, options = {}) {
   const useFixedId = Number.isInteger(options.id);
   const id = useFixedId ? options.id : world.anchorIdSeed++;
   if (id >= world.anchorIdSeed) world.anchorIdSeed = id + 1;
-  const isRed = typeof options.isRed === "boolean" ? options.isRed : Math.random() < RED_ANCHOR_CHANCE;
+  const shouldForceBlue = !options.ignoreEarlyBlueRule && world.anchorSpawnCount < FIRST_BLUE_ANCHOR_COUNT;
+  const isRed = typeof options.isRed === "boolean" ? options.isRed : (shouldForceBlue ? false : Math.random() < RED_ANCHOR_CHANCE);
   return {
     id,
     x,
@@ -1411,22 +1442,33 @@ function addAnchorAbove(yOverride = null, forcedSide = 0) {
   commitAnchor(fallbackX, y);
 }
 
-function canSpawnTrackFromGenerator() {
+function canSpawnMovingTrackFromGenerator() {
   if (!TRACK_ENABLED || !world.movingTrack) return false;
-  if (world.runMeters < hazardCfg.trackUnlockMeters) return false;
   if (world.anchorSpawnCount < TRACK_UNLOCK_ANCHOR_COUNT) return false;
   const t = world.movingTrack;
   if (!t.activated) return true;
   return t.y > world.cameraY + world.h * 1.2 && (t.mode !== "pin" || world.activeAnchor !== t.pinAnchor);
 }
 
-function shouldSpawnTrackOnNextSlot() {
-  if (!canSpawnTrackFromGenerator()) return false;
+function shouldSpawnBaseTrackOnNextSlot() {
+  if (!canSpawnMovingTrackFromGenerator()) return false;
+  if (world.runMeters < hazardCfg.baseTrackUnlockMeters) return false;
   if (!world.movingTrack.activated) return true;
   const densityT = clamp01((world.runMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
-  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.trackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
-  const dynamicChance = lerp(hazardCfg.trackSpawnChance, hazardCfg.trackSpawnChanceMax, densityT);
-  if (world.trackSlotsSinceSpawn < dynamicInterval) return false;
+  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.baseTrackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(hazardCfg.baseTrackSpawnChance, hazardCfg.baseTrackSpawnChanceMax, densityT);
+  if (world.baseTrackSlotsSinceSpawn < dynamicInterval) return false;
+  return Math.random() < dynamicChance;
+}
+
+function shouldSpawnDamageTrackOnNextSlot() {
+  if (!canSpawnMovingTrackFromGenerator()) return false;
+  if (world.runMeters < hazardCfg.damageTrackUnlockMeters) return false;
+  if (!world.movingTrack.activated) return true;
+  const densityT = clamp01((world.runMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.damageTrackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(hazardCfg.damageTrackSpawnChance, hazardCfg.damageTrackSpawnChanceMax, densityT);
+  if (world.damageTrackSlotsSinceSpawn < dynamicInterval) return false;
   return Math.random() < dynamicChance;
 }
 
@@ -1571,11 +1613,6 @@ function createMovingTrack() {
   };
 }
 
-function chooseMovingTrackMode() {
-  if (world.runMeters < hazardCfg.trackGearUnlockMeters) return "pin";
-  return Math.random() < hazardCfg.trackGearSpawnRatio ? "gear" : "pin";
-}
-
 function getTrackRespawnXByCursor(cursor, width) {
   const ratio = ANCHOR_X_RATIOS[cursor % ANCHOR_X_RATIOS.length];
   const sidePad = Math.max(cfg.anchorSidePadding + 12, width * 0.5 + 14);
@@ -1627,33 +1664,53 @@ function addGeneratedSlotAbove() {
   const spacing = rand(spacingRange.min, spacingRange.max);
   const y = world.generatedTopY - spacing;
 
-  const spawnTrack = shouldSpawnTrackOnNextSlot();
-  const spawnGear = !spawnTrack && shouldSpawnGearOnNextSlot();
+  const spawnBaseTrack = shouldSpawnBaseTrackOnNextSlot();
+  const spawnDamageTrack = shouldSpawnDamageTrackOnNextSlot();
+  const spawnGear = shouldSpawnGearOnNextSlot();
 
-  if (spawnTrack) {
-    spawnMovingTrackAtY(world.movingTrack, y, chooseMovingTrackMode());
+  const candidates = [];
+  if (spawnBaseTrack) candidates.push("baseTrack");
+  if (spawnDamageTrack) candidates.push("damageTrack");
+  if (spawnGear) candidates.push("gear");
+  const selected = candidates.length > 0 ? candidates[randInt(0, candidates.length - 1)] : "anchor";
+
+  if (selected === "baseTrack") {
+    spawnMovingTrackAtY(world.movingTrack, y, "pin");
     world.generatedTopY = y;
-    world.trackSlotsSinceSpawn = 0;
+    world.baseTrackSlotsSinceSpawn = 0;
+    world.damageTrackSlotsSinceSpawn += 1;
     world.gearSlotsSinceSpawn += 1;
     return;
   }
 
-  if (spawnGear) {
+  if (selected === "damageTrack") {
+    spawnMovingTrackAtY(world.movingTrack, y, "gear");
+    world.generatedTopY = y;
+    world.damageTrackSlotsSinceSpawn = 0;
+    world.baseTrackSlotsSinceSpawn += 1;
+    world.gearSlotsSinceSpawn += 1;
+    return;
+  }
+
+  if (selected === "gear") {
     spawnGearAtY(y);
     world.gearSlotsSinceSpawn = 0;
-    world.trackSlotsSinceSpawn += 1;
+    world.baseTrackSlotsSinceSpawn += 1;
+    world.damageTrackSlotsSinceSpawn += 1;
     return;
   }
 
   addAnchorAbove(y);
-  world.trackSlotsSinceSpawn += 1;
+  world.baseTrackSlotsSinceSpawn += 1;
+  world.damageTrackSlotsSinceSpawn += 1;
   world.gearSlotsSinceSpawn += 1;
 }
 
 function resetRun() {
   world.movingTrack = createMovingTrack();
   world.trackLaneCursor = randInt(0, ANCHOR_X_RATIOS.length - 1);
-  world.trackSlotsSinceSpawn = 0;
+  world.baseTrackSlotsSinceSpawn = 0;
+  world.damageTrackSlotsSinceSpawn = 0;
   world.gearSlotsSinceSpawn = 0;
   world.pendingSafeAnchorSide = 0;
   createInitialAnchors();

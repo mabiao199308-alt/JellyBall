@@ -35,7 +35,7 @@ const copyCfgCodeBtn = document.getElementById("copyCfgCodeBtn");
 const defaultCfgBtn = document.getElementById("defaultCfgBtn");
 const cfgStatus = document.getElementById("cfgStatus");
 const deathFxCfgStatus = document.getElementById("deathFxCfgStatus");
-const tutorialResetBtn = document.getElementById("tutorialResetBtn");
+const clearDataBtn = document.getElementById("clearDataBtn");
 
 function isLocalDevHost() {
   const host = (window.location.hostname || "").toLowerCase();
@@ -109,6 +109,9 @@ const GEAR_SLOT_INTERVAL_MIN = 3;
 const GEAR_ANCHOR_BLOCK_Y = 190;
 const GEAR_ANCHOR_BLOCK_X_PAD = 74;
 const GEAR_SAFE_ANCHOR_MIN_X_GAP = 130;
+const GEAR_SAFE_ANCHOR_Y_OFFSET_MIN = 25;
+const GEAR_SAFE_ANCHOR_Y_OFFSET_MAX = 70;
+const GEAR_SAFE_ANCHOR_TRY_COUNT = 14;
 const TRACK_UNLOCK_METERS = 20;
 const GEAR_UNLOCK_METERS = 50;
 const TRACK_GEAR_UNLOCK_METERS = 100;
@@ -147,6 +150,9 @@ const BG_HAZE_PARTICLE_DENSITY = 1 / 17000;
 const BG_HAZE_PARTICLE_MIN = 20;
 const BG_HAZE_PARTICLE_MAX = 44;
 const BG_METER_MARK_INTERVAL = 50;
+const BEST_MARKER_MIN_METERS = 0.1;
+const BEST_FIREWORK_DURATION = 1.6;
+const BEST_FIREWORK_EMIT_INTERVAL = 0.045;
 
 const defaultCfg = {
   gravity: 2060,
@@ -314,6 +320,15 @@ function createEmptyDeathFx() {
   };
 }
 
+function createEmptyBestFireworks() {
+  return {
+    active: false,
+    timer: 0,
+    emitTimer: 0,
+    particles: [],
+  };
+}
+
 const world = {
   w: 0,
   h: 0,
@@ -342,6 +357,8 @@ const world = {
   minY: 0,
   runMeters: 0,
   bestMeters: loadBestMeters(),
+  runStartBestMeters: loadBestMeters(),
+  bestCelebratePlayed: false,
 
   ball: { x: 0, y: 0, vx: 0, vy: 0 },
   lookDir: { x: 0, y: 0 },
@@ -367,6 +384,7 @@ const world = {
   launchGraceTimer: 0,
   hasHookedSinceLaunch: false,
   deathFx: createEmptyDeathFx(),
+  bestFireworks: createEmptyBestFireworks(),
   background: createBackgroundState(),
 };
 
@@ -693,10 +711,19 @@ function markTutorialSeen() {
   }
 }
 
-function clearTutorialSeen() {
-  tutorialSeen = false;
+function clearAllSavedData() {
+  const keys = [
+    CFG_STORAGE_KEY,
+    CFG_DEFAULT_OVERRIDE_KEY,
+    BEST_STORAGE_KEY,
+    JELLY_CFG_STORAGE_KEY,
+    JELLY_LAYER_VISIBILITY_KEY,
+    HAZARD_CFG_STORAGE_KEY,
+    HAZARD_DEFAULT_OVERRIDE_KEY,
+    TUTORIAL_SEEN_STORAGE_KEY,
+  ];
   try {
-    localStorage.removeItem(TUTORIAL_SEEN_STORAGE_KEY);
+    for (const key of keys) localStorage.removeItem(key);
   } catch {
     // ignore storage delete error
   }
@@ -1291,30 +1318,86 @@ function isAnchorBlockedByGear(x, y) {
   return false;
 }
 
+function isAnchorPlacementValid(prev, x, y, forcedSide = 0) {
+  if (isAnchorBlockedByTrack(x, y) || isAnchorBlockedByGear(x, y)) return false;
+  if (!prev) return true;
+  const dx = Math.abs(x - prev.x);
+  const maxStep = getAnchorMaxStepX();
+  const minGap = forcedSide !== 0 ? GEAR_SAFE_ANCHOR_MIN_X_GAP : 60;
+  return dx >= minGap && dx <= maxStep;
+}
+
+function commitAnchor(x, y) {
+  world.anchors.push(createAnchor(x, y));
+  world.anchorSpawnCount += 1;
+  world.generatedTopY = y;
+}
+
+function tryAddAnchorAtY(y, forcedSide = 0, tryCount = ANCHOR_X_RATIOS.length + 4) {
+  const prev = world.anchors[world.anchors.length - 1] || null;
+  for (let i = 0; i < tryCount; i += 1) {
+    const x = forcedSide === 0 ? getRandomizedAnchorXByCursor(world.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
+    world.anchorLaneCursor += 1;
+    if (!isAnchorPlacementValid(prev, x, y, forcedSide)) continue;
+    commitAnchor(x, y);
+    return true;
+  }
+
+  if (forcedSide !== 0 && prev) {
+    const fallbackRatios = forcedSide < 0 ? [0.35, 0.2, 0.5] : [0.65, 0.8, 0.5];
+    const yOffsets = [0, -10, 10, -18, 18, -26, 26];
+    const pad = cfg.anchorSidePadding;
+    for (const ratio of fallbackRatios) {
+      const x = clamp(world.w * ratio, pad, world.w - pad);
+      for (const dy of yOffsets) {
+        const candidateY = y + dy;
+        if (!isAnchorPlacementValid(prev, x, candidateY, forcedSide)) continue;
+        commitAnchor(x, candidateY);
+        return true;
+      }
+    }
+
+    const dir = forcedSide < 0 ? -1 : 1;
+    const sidePad = cfg.anchorSidePadding;
+    const maxStep = getAnchorMaxStepX();
+    const relaxedMinGap = 76;
+    const nearX = clamp(prev.x + dir * relaxedMinGap, sidePad, world.w - sidePad);
+    const farX = clamp(prev.x + dir * maxStep * 0.92, sidePad, world.w - sidePad);
+    const start = dir < 0 ? farX : nearX;
+    const end = dir < 0 ? nearX : farX;
+    const scanYOffsets = [0, -8, 8, -16, 16, -24, 24];
+    for (const dy of scanYOffsets) {
+      const candidateY = y + dy;
+      for (let i = 0; i <= 24; i += 1) {
+        const t = i / 24;
+        const x = lerp(start, end, t);
+        if (isAnchorBlockedByTrack(x, candidateY) || isAnchorBlockedByGear(x, candidateY)) continue;
+        const dx = Math.abs(x - prev.x);
+        if (dx < relaxedMinGap || dx > maxStep) continue;
+        commitAnchor(x, candidateY);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 function addAnchorAbove(yOverride = null, forcedSide = 0) {
   const spacingRange = getDynamicAnchorSpacingRange();
   const spacing = rand(spacingRange.min, spacingRange.max);
   const y = Number.isFinite(yOverride) ? yOverride : world.generatedTopY - spacing;
-  let x = forcedSide === 0 ? getRandomizedAnchorXByCursor(world.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
-  world.anchorLaneCursor += 1;
-  const prev = world.anchors[world.anchors.length - 1];
-  if (prev) {
-    const maxStep = getAnchorMaxStepX();
-    let guard = 0;
-    while ((Math.abs(x - prev.x) < 60
-      || Math.abs(x - prev.x) > maxStep
-      || isAnchorBlockedByTrack(x, y)
-      || isAnchorBlockedByGear(x, y)
-      || (forcedSide !== 0 && Math.abs(x - prev.x) < GEAR_SAFE_ANCHOR_MIN_X_GAP)) && guard < ANCHOR_X_RATIOS.length + 4) {
-      x = forcedSide === 0 ? getRandomizedAnchorXByCursor(world.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
-      world.anchorLaneCursor += 1;
-      guard += 1;
-    }
-  }
+  const ok = tryAddAnchorAtY(y, forcedSide);
+  if (ok) return;
 
-  world.anchors.push(createAnchor(x, y));
-  world.anchorSpawnCount += 1;
-  world.generatedTopY = y;
+  const fallbackX = forcedSide === 0 ? getFixedAnchorXByCursor(world.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
+  world.anchorLaneCursor += 1;
+  const prev = world.anchors[world.anchors.length - 1] || null;
+  if (forcedSide !== 0 && prev && !isAnchorPlacementValid(prev, fallbackX, y, forcedSide)) {
+    const relaxedOk = tryAddAnchorAtY(y, forcedSide, GEAR_SAFE_ANCHOR_TRY_COUNT);
+    if (relaxedOk) return;
+  }
+  commitAnchor(fallbackX, y);
 }
 
 function canSpawnTrackFromGenerator() {
@@ -1398,7 +1481,12 @@ function spawnGearAtY(y) {
   const rightX = clamp(world.w * rand(0.64, 0.8), pad, world.w - pad);
   const x = side < 0 ? leftX : rightX;
   world.gears.push(createGearHazard(x, y));
-  world.pendingSafeAnchorSide = side < 0 ? 1 : -1;
+  const safeSide = side < 0 ? 1 : -1;
+  const safeYOffset = rand(GEAR_SAFE_ANCHOR_Y_OFFSET_MIN, GEAR_SAFE_ANCHOR_Y_OFFSET_MAX);
+  const safeY = y - safeYOffset;
+  if (!tryAddAnchorAtY(safeY, safeSide, GEAR_SAFE_ANCHOR_TRY_COUNT)) {
+    addAnchorAbove(safeY, safeSide);
+  }
   return true;
 }
 
@@ -1528,15 +1616,6 @@ function addGeneratedSlotAbove() {
   const spacing = rand(spacingRange.min, spacingRange.max);
   const y = world.generatedTopY - spacing;
 
-  if (world.pendingSafeAnchorSide !== 0) {
-    const safeSide = world.pendingSafeAnchorSide;
-    world.pendingSafeAnchorSide = 0;
-    addAnchorAbove(y, safeSide);
-    world.trackSlotsSinceSpawn += 1;
-    world.gearSlotsSinceSpawn += 1;
-    return;
-  }
-
   const spawnTrack = shouldSpawnTrackOnNextSlot();
   const spawnGear = !spawnTrack && shouldSpawnGearOnNextSlot();
 
@@ -1550,7 +1629,6 @@ function addGeneratedSlotAbove() {
 
   if (spawnGear) {
     spawnGearAtY(y);
-    world.generatedTopY = y;
     world.gearSlotsSinceSpawn = 0;
     world.trackSlotsSinceSpawn += 1;
     return;
@@ -1600,12 +1678,15 @@ function resetRun() {
   world.launchGraceTimer = 0;
   world.hasHookedSinceLaunch = false;
   world.deathFx = createEmptyDeathFx();
+  world.bestFireworks = createEmptyBestFireworks();
   wallHitLastPlaySec = -999;
   wallHitMuteUntilSec = -999;
   deathPopLastPlaySec = -999;
   world.startY = world.ball.y;
   world.minY = world.ball.y;
   world.runMeters = 0;
+  world.runStartBestMeters = world.bestMeters;
+  world.bestCelebratePlayed = false;
   updateMeterHud();
   syncTutorialOverlay();
 }
@@ -2147,11 +2228,86 @@ function updateMeters() {
   world.minY = Math.min(world.minY, world.ball.y);
   const risePx = Math.max(0, world.startY - world.minY);
   world.runMeters = risePx / cfg.pxPerMeter;
+
+  if (!world.bestCelebratePlayed
+      && world.runStartBestMeters > BEST_MARKER_MIN_METERS
+      && world.runMeters > world.runStartBestMeters) {
+    world.bestCelebratePlayed = true;
+    triggerBestFireworks();
+  }
+
   if (world.runMeters > world.bestMeters) {
     world.bestMeters = world.runMeters;
     saveBestMeters();
   }
   updateMeterHud();
+}
+
+function createBestFireworkParticle(side) {
+  const fromLeft = side < 0;
+  const x = fromLeft ? 24 : world.w - 24;
+  const y = world.h - 14;
+  const vxBase = rand(220, 460);
+  const vx = fromLeft ? vxBase : -vxBase;
+  const vy = rand(-900, -520);
+  const radius = rand(2.2, 4.6);
+  const life = rand(0.7, 1.1);
+  const colors = ["#fef08a", "#fdba74", "#67e8f9", "#c4b5fd", "#f9a8d4"];
+  return {
+    x,
+    y,
+    vx,
+    vy,
+    radius,
+    life,
+    maxLife: life,
+    gravity: rand(900, 1300),
+    drag: rand(0.976, 0.988),
+    color: colors[randInt(0, colors.length - 1)],
+  };
+}
+
+function emitBestFireworksBurst() {
+  const fx = world.bestFireworks;
+  for (let i = 0; i < 7; i += 1) {
+    fx.particles.push(createBestFireworkParticle(-1));
+    fx.particles.push(createBestFireworkParticle(1));
+  }
+}
+
+function triggerBestFireworks() {
+  world.bestFireworks = createEmptyBestFireworks();
+  world.bestFireworks.active = true;
+  world.bestFireworks.timer = BEST_FIREWORK_DURATION;
+  world.bestFireworks.emitTimer = 0;
+  emitBestFireworksBurst();
+}
+
+function updateBestFireworks(dt) {
+  const fx = world.bestFireworks;
+  if (!fx || (!fx.active && fx.particles.length === 0)) return;
+
+  if (fx.active) {
+    fx.timer = Math.max(0, fx.timer - dt);
+    fx.emitTimer -= dt;
+    while (fx.emitTimer <= 0 && fx.timer > 0) {
+      emitBestFireworksBurst();
+      fx.emitTimer += BEST_FIREWORK_EMIT_INTERVAL;
+    }
+    if (fx.timer <= 0) fx.active = false;
+  }
+
+  for (let i = fx.particles.length - 1; i >= 0; i -= 1) {
+    const p = fx.particles[i];
+    p.life -= dt;
+    p.vx *= Math.pow(p.drag, dt * 60);
+    p.vy += p.gravity * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.life <= 0 || p.y > world.h + 18 || p.x < -24 || p.x > world.w + 24) {
+      fx.particles.splice(i, 1);
+    }
+  }
 }
 
 function updateMeterHud() {
@@ -2188,7 +2344,7 @@ function updateCamera(dt) {
 
   const xAlpha = 1 - Math.exp(-cfg.cameraFollowX * dt);
   let desiredCameraX = 0;
-  if (world.state === "aiming" || world.state === "tethered") {
+  if (world.state === "aiming" && world.dragging) {
     const padding = Math.min(cfg.cameraLookXPadding, world.w * 0.45);
     const leftLimit = padding;
     const rightLimit = world.w - padding;
@@ -2511,6 +2667,7 @@ function collideBounds() {
 function update(dt) {
   world.timeSec += dt;
   syncTutorialOverlay();
+  updateBestFireworks(dt);
   updateGear(dt);
   updateMovingTrack(dt);
   if (world.deathFx.active && world.deathFx.previewOnly) {
@@ -2591,30 +2748,88 @@ function drawBackgroundMeterMarks() {
   const bottomWorldY = world.cameraY + world.h;
   const topMeter = Math.max(0, (startY - topWorldY) / pxPerMeter);
   const bottomMeter = Math.max(0, (startY - bottomWorldY) / pxPerMeter);
-  const firstMark = Math.ceil(bottomMeter / interval) * interval;
+  const firstMark = Math.max(interval, Math.ceil(bottomMeter / interval) * interval);
   const lastMark = Math.floor(topMeter / interval) * interval;
 
   if (lastMark < firstMark) return;
 
   ctx.save();
-  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
-  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-  ctx.lineWidth = 1;
-  ctx.font = "600 12px sans-serif";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+  ctx.lineWidth = 2.4;
+  ctx.font = "700 44px sans-serif";
   ctx.textBaseline = "middle";
-  ctx.textAlign = "right";
+  ctx.textAlign = "center";
+  ctx.shadowColor = "rgba(15, 23, 42, 0.45)";
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 2;
+
+  const centerX = world.w * 0.5;
+  const lineGap = 20;
+  const lineLen = Math.max(40, Math.min(120, world.w * 0.2));
 
   for (let meter = firstMark; meter <= lastMark; meter += interval) {
     const worldY = startY - meter * pxPerMeter;
     const sy = toScreenY(worldY);
     if (sy < -24 || sy > world.h + 24) continue;
+    const label = `${meter}m`;
+    const labelHalfW = ctx.measureText(label).width * 0.5;
+    const leftEndX = centerX - labelHalfW - lineGap;
+    const leftStartX = Math.max(18, leftEndX - lineLen);
+    const rightStartX = centerX + labelHalfW + lineGap;
+    const rightEndX = Math.min(world.w - 18, rightStartX + lineLen);
+
     ctx.beginPath();
-    ctx.moveTo(18, sy);
-    ctx.lineTo(world.w - 18, sy);
+    if (leftStartX < leftEndX) {
+      ctx.moveTo(leftStartX, sy);
+      ctx.lineTo(leftEndX, sy);
+    }
+    if (rightStartX < rightEndX) {
+      ctx.moveTo(rightStartX, sy);
+      ctx.lineTo(rightEndX, sy);
+    }
     ctx.stroke();
-    ctx.fillText(`${meter}m`, world.w - 24, sy - 12);
+    ctx.fillText(label, centerX, sy);
   }
 
+  ctx.restore();
+}
+
+function drawBackgroundBestMeterMark() {
+  const bestMeters = world.runStartBestMeters;
+  if (!Number.isFinite(bestMeters) || bestMeters <= BEST_MARKER_MIN_METERS) return;
+
+  const pxPerMeter = Math.max(1, cfg.pxPerMeter || 100);
+  const startY = Number.isFinite(world.startY) ? world.startY : world.ball.y;
+  const worldY = startY - bestMeters * pxPerMeter;
+  const sy = toScreenY(worldY);
+  if (sy < -36 || sy > world.h + 36) return;
+
+  const rightPad = 14;
+  const markerLen = 54;
+  const markerEndX = world.w - rightPad;
+  const markerStartX = markerEndX - markerLen;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(251, 191, 36, 0.95)";
+  ctx.fillStyle = "rgba(255, 247, 196, 0.98)";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  ctx.font = "700 18px sans-serif";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "bottom";
+  ctx.shadowColor = "rgba(120, 53, 15, 0.55)";
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 1;
+
+  ctx.beginPath();
+  ctx.moveTo(markerStartX, sy);
+  ctx.lineTo(markerEndX, sy);
+  ctx.stroke();
+
+  ctx.fillText(`历史最高 ${bestMeters.toFixed(1)}m`, markerEndX, sy - 8);
   ctx.restore();
 }
 
@@ -2667,6 +2882,7 @@ function drawBackground() {
   }
 
   drawBackgroundMeterMarks();
+  drawBackgroundBestMeterMark();
 
   const haze = ctx.createLinearGradient(0, world.h * 0.55, 0, world.h);
   haze.addColorStop(0, "rgba(255,255,255,0)");
@@ -3239,6 +3455,27 @@ function drawDeathFx() {
   }
 }
 
+function drawBestFireworks() {
+  const fx = world.bestFireworks;
+  if (!fx || fx.particles.length === 0) return;
+
+  for (const p of fx.particles) {
+    const alpha = clamp01(p.life / Math.max(0.0001, p.maxLife));
+    if (alpha <= 0.01) continue;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    ctx.beginPath();
+    ctx.arc(p.x - p.radius * 0.25, p.y - p.radius * 0.22, p.radius * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function drawBall() {
   if (world.state === "dying" || world.state === "gameover") return;
   const sy = toScreenY(world.ball.y);
@@ -3319,6 +3556,7 @@ function draw() {
   drawAnchors();
   drawBall();
   drawBreakFlash();
+  drawBestFireworks();
   drawDeathFx();
   drawGameOver();
 }
@@ -3513,11 +3751,11 @@ if (jellyDefaultBtn) {
   });
 }
 
-if (tutorialResetBtn) {
-  tutorialResetBtn.addEventListener("click", () => {
-    clearTutorialSeen();
-    syncTutorialOverlay();
-    setStatus("已清除新手引导记录，可再次看到首次引导。");
+if (clearDataBtn) {
+  clearDataBtn.addEventListener("click", () => {
+    clearAllSavedData();
+    setStatus("已清除本地数据，正在重置…");
+    window.location.reload();
   });
 }
 

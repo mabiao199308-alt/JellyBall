@@ -50,6 +50,9 @@ const GEAR_SLOT_INTERVAL_MIN = 3;
 const GEAR_ANCHOR_BLOCK_Y = 190;
 const GEAR_ANCHOR_BLOCK_X_PAD = 74;
 const GEAR_SAFE_ANCHOR_MIN_X_GAP = 130;
+const GEAR_SAFE_ANCHOR_Y_OFFSET_MIN = 25;
+const GEAR_SAFE_ANCHOR_Y_OFFSET_MAX = 70;
+const GEAR_SAFE_ANCHOR_TRY_COUNT = 14;
 
 const HAZARD_DENSITY_START_METERS = 100;
 const HAZARD_DENSITY_FULL_METERS = 260;
@@ -190,29 +193,57 @@ function isAnchorBlockedByGear(state, x, y) {
   return false;
 }
 
+function getMinAnchorGap(forcedSide = 0) {
+  return forcedSide !== 0 ? GEAR_SAFE_ANCHOR_MIN_X_GAP : 60;
+}
+
+function isAnchorPlacementValid(state, prev, x, y, forcedSide = 0) {
+  if (isAnchorBlockedByTrack(state, x, y) || isAnchorBlockedByGear(state, x, y)) return false;
+  if (!prev) return true;
+  const dx = Math.abs(x - prev.x);
+  return dx >= getMinAnchorGap(forcedSide) && dx <= getAnchorMaxStepX();
+}
+
+function commitAnchor(state, x, y) {
+  state.anchors.push(createAnchor(x, y));
+  state.anchorSpawnCount += 1;
+  state.generatedTopY = y;
+}
+
+function tryAddAnchorAtY(state, y, forcedSide = 0, tryCount = ANCHOR_X_RATIOS.length + 4) {
+  const prev = state.anchors[state.anchors.length - 1] || null;
+  for (let i = 0; i < tryCount; i += 1) {
+    const x = forcedSide === 0 ? getRandomizedAnchorXByCursor(state.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
+    state.anchorLaneCursor += 1;
+    if (!isAnchorPlacementValid(state, prev, x, y, forcedSide)) continue;
+    commitAnchor(state, x, y);
+    return true;
+  }
+  if (forcedSide !== 0 && prev) {
+    const fallbackRatios = forcedSide < 0 ? [0.35, 0.2, 0.5] : [0.65, 0.8, 0.5];
+    const yOffsets = [0, -10, 10, -18, 18, -26, 26];
+    const pad = cfg.anchorSidePadding;
+    for (const ratio of fallbackRatios) {
+      const x = clamp(WORLD_W * ratio, pad, WORLD_W - pad);
+      for (const dy of yOffsets) {
+        const candidateY = y + dy;
+        if (!isAnchorPlacementValid(state, prev, x, candidateY, forcedSide)) continue;
+        commitAnchor(state, x, candidateY);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function addAnchorAbove(state, yOverride = null, forcedSide = 0) {
   const spacingRange = getDynamicAnchorSpacingRange(state);
   const spacing = rand(spacingRange.min, spacingRange.max);
   const y = Number.isFinite(yOverride) ? yOverride : state.generatedTopY - spacing;
-  let x = forcedSide === 0 ? getRandomizedAnchorXByCursor(state.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
+  if (tryAddAnchorAtY(state, y, forcedSide)) return;
+  const x = forcedSide === 0 ? getFixedAnchorXByCursor(state.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
   state.anchorLaneCursor += 1;
-  const prev = state.anchors[state.anchors.length - 1];
-  if (prev) {
-    const maxStep = getAnchorMaxStepX();
-    let guard = 0;
-    while ((Math.abs(x - prev.x) < 60
-      || Math.abs(x - prev.x) > maxStep
-      || isAnchorBlockedByTrack(state, x, y)
-      || isAnchorBlockedByGear(state, x, y)
-      || (forcedSide !== 0 && Math.abs(x - prev.x) < GEAR_SAFE_ANCHOR_MIN_X_GAP)) && guard < ANCHOR_X_RATIOS.length + 4) {
-      x = forcedSide === 0 ? getRandomizedAnchorXByCursor(state.anchorLaneCursor) : getRandomizedAnchorXBySide(forcedSide);
-      state.anchorLaneCursor += 1;
-      guard += 1;
-    }
-  }
-  state.anchors.push(createAnchor(x, y));
-  state.anchorSpawnCount += 1;
-  state.generatedTopY = y;
+  commitAnchor(state, x, y);
 }
 
 function createGearHazard(x, y) {
@@ -228,7 +259,12 @@ function spawnGearAtY(state, y) {
   const rightX = clamp(WORLD_W * rand(0.64, 0.8), pad, WORLD_W - pad);
   const x = side < 0 ? leftX : rightX;
   state.gears.push(createGearHazard(x, y));
-  state.pendingSafeAnchorSide = side < 0 ? 1 : -1;
+  const safeSide = side < 0 ? 1 : -1;
+  const safeYOffset = rand(GEAR_SAFE_ANCHOR_Y_OFFSET_MIN, GEAR_SAFE_ANCHOR_Y_OFFSET_MAX);
+  const safeY = y - safeYOffset;
+  if (!tryAddAnchorAtY(state, safeY, safeSide, GEAR_SAFE_ANCHOR_TRY_COUNT)) {
+    addAnchorAbove(state, safeY, safeSide);
+  }
   return true;
 }
 
@@ -303,15 +339,6 @@ function addGeneratedSlotAbove(state) {
   const spacing = rand(spacingRange.min, spacingRange.max);
   const y = state.generatedTopY - spacing;
 
-  if (state.pendingSafeAnchorSide !== 0) {
-    const safeSide = state.pendingSafeAnchorSide;
-    state.pendingSafeAnchorSide = 0;
-    addAnchorAbove(state, y, safeSide);
-    state.trackSlotsSinceSpawn += 1;
-    state.gearSlotsSinceSpawn += 1;
-    return;
-  }
-
   const spawnTrack = shouldSpawnTrackOnNextSlot(state);
   const spawnGear = !spawnTrack && shouldSpawnGearOnNextSlot(state);
 
@@ -325,7 +352,6 @@ function addGeneratedSlotAbove(state) {
 
   if (spawnGear) {
     spawnGearAtY(state, y);
-    state.generatedTopY = y;
     state.gearSlotsSinceSpawn = 0;
     state.trackSlotsSinceSpawn += 1;
     return;

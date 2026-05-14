@@ -83,6 +83,113 @@ body {
   pointer-events: none;
 }
 
+.tutorial-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  /* 整体下移：约 2 个果冻长度（~96px） */
+  padding-top: min(72%, 620px);
+  transform: translateY(150px);
+  transition: opacity 0.24s ease;
+}
+
+.tutorial-overlay.is-hidden {
+  opacity: 0;
+}
+
+.tutorial-overlay__text {
+  order: 2;
+  margin-top: 14px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #f8fafc;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  text-shadow: 0 2px 8px rgba(15, 23, 42, 0.5);
+  animation: tutorialTextPulse 1.2s ease-in-out infinite;
+}
+
+.tutorial-overlay__gesture {
+  order: 1;
+  position: relative;
+  width: min(24vw, 128px);
+  height: min(34vw, 180px);
+}
+
+.tutorial-overlay__trail {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 9px;
+  height: 64%;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(125, 211, 252, 0.52), rgba(255, 255, 255, 0.08));
+  filter: blur(0.2px);
+  animation: tutorialTrailPulse 1.2s ease-in-out infinite;
+}
+
+.tutorial-overlay__hand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(20vw, 96px);
+  max-width: 96px;
+  transform-origin: 50% 60%;
+  animation: tutorialHandSwipe 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.5));
+}
+
+@keyframes tutorialHandSwipe {
+  0% {
+    transform: translate(-50%, -62%) scale(0.92) rotate(-6deg);
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.98;
+  }
+  58% {
+    transform: translate(-50%, -6%) scale(1) rotate(-1deg);
+    opacity: 1;
+  }
+  82% {
+    transform: translate(-50%, -6%) scale(1) rotate(-1deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -62%) scale(0.92) rotate(-6deg);
+    opacity: 0;
+  }
+}
+
+@keyframes tutorialTrailPulse {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 0.52;
+  }
+}
+
+@keyframes tutorialTextPulse {
+  0%,
+  100% {
+    opacity: 0.78;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .debug-panel {
   position: absolute;
   left: calc(env(safe-area-inset-left, 0px) + 12px);
@@ -228,4 +335,15 @@ body {
 
 .preview-entry:hover {
   background: rgba(30, 41, 59, 0.96);
+}
+
+.preview-entry--tutorial {
+  top: calc(env(safe-area-inset-top, 0px) + 212px);
+  cursor: pointer;
+}
+
+/* 非本机访问时隐藏调试入口 */
+body.hide-dev-controls .debug-toggle,
+body.hide-dev-controls .preview-entry {
+  display: none !important;
 }

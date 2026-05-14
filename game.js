@@ -4,6 +4,7 @@ const gameShell = document.getElementById("gameShell");
 const resetBtn = document.getElementById("resetBtn");
 const meterDisplayEl = document.getElementById("meterDisplay");
 const fpsDisplayEl = document.getElementById("fpsDisplay");
+const tutorialOverlay = document.getElementById("tutorialOverlay");
 
 const debugPanelBody = document.getElementById("debugPanelBody");
 const debugPanel = document.getElementById("debugPanel");
@@ -34,6 +35,17 @@ const copyCfgCodeBtn = document.getElementById("copyCfgCodeBtn");
 const defaultCfgBtn = document.getElementById("defaultCfgBtn");
 const cfgStatus = document.getElementById("cfgStatus");
 const deathFxCfgStatus = document.getElementById("deathFxCfgStatus");
+const tutorialResetBtn = document.getElementById("tutorialResetBtn");
+
+function isLocalDevHost() {
+  const host = (window.location.hostname || "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+}
+
+const IS_LOCAL_DEV_HOST = isLocalDevHost();
+if (!IS_LOCAL_DEV_HOST) {
+  document.body.classList.add("hide-dev-controls");
+}
 
 const CFG_STORAGE_KEY = "swipe_debug_cfg_v2";
 const CFG_DEFAULT_OVERRIDE_KEY = "swipe_debug_default_cfg_v1";
@@ -44,6 +56,7 @@ const HAZARD_CFG_STORAGE_KEY = "swipe_hazard_cfg_v1";
 const HAZARD_DEFAULT_OVERRIDE_KEY = "swipe_hazard_default_cfg_v1";
 const CODE_DEFAULT_SAVE_ENDPOINT = "/__save_code_defaults";
 const CODE_DEFAULT_SAVE_ENDPOINT_FALLBACK = "http://127.0.0.1:8130/__save_code_defaults";
+const TUTORIAL_SEEN_STORAGE_KEY = "swipe_tutorial_seen_v1";
 const ANCHOR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
 const LOOK_DIR_SMOOTH = 12;
 const JELLY_DEFORM_DECAY = 3.8;
@@ -133,6 +146,7 @@ const BG_CLOUD_PARALLAX_MAX = 0.34;
 const BG_HAZE_PARTICLE_DENSITY = 1 / 17000;
 const BG_HAZE_PARTICLE_MIN = 20;
 const BG_HAZE_PARTICLE_MAX = 44;
+const BG_METER_MARK_INTERVAL = 50;
 
 const defaultCfg = {
   gravity: 2060,
@@ -657,6 +671,48 @@ function loadBestMeters() {
 
 function saveBestMeters() {
   localStorage.setItem(BEST_STORAGE_KEY, String(world.bestMeters));
+}
+
+function loadTutorialSeen() {
+  try {
+    return localStorage.getItem(TUTORIAL_SEEN_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+let tutorialSeen = loadTutorialSeen();
+
+function markTutorialSeen() {
+  if (tutorialSeen) return;
+  tutorialSeen = true;
+  try {
+    localStorage.setItem(TUTORIAL_SEEN_STORAGE_KEY, "1");
+  } catch {
+    // ignore storage write error
+  }
+}
+
+function clearTutorialSeen() {
+  tutorialSeen = false;
+  try {
+    localStorage.removeItem(TUTORIAL_SEEN_STORAGE_KEY);
+  } catch {
+    // ignore storage delete error
+  }
+}
+
+function shouldShowTutorialOverlay() {
+  if (tutorialSeen) return false;
+  if (!world.activeAnchor) return false;
+  if (world.state !== "aiming") return false;
+  if (world.dragging) return false;
+  return true;
+}
+
+function syncTutorialOverlay() {
+  if (!tutorialOverlay) return;
+  tutorialOverlay.classList.toggle("is-hidden", !shouldShowTutorialOverlay());
 }
 
 function decimals(step) {
@@ -1551,6 +1607,7 @@ function resetRun() {
   world.minY = world.ball.y;
   world.runMeters = 0;
   updateMeterHud();
+  syncTutorialOverlay();
 }
 
 function kickJelly(amount, wobbleBoost = amount * 1.1) {
@@ -1734,7 +1791,7 @@ function onPointerDown(e) {
   if (world.state === "launched") return;
   const p = toWorldPoint(e);
   const d = Math.hypot(p.x - world.ball.x, p.y - world.ball.y);
-  if (d <= cfg.ballRadius * 1.35) {
+  if (d <= cfg.ballRadius * 2) {
     world.dragging = true;
     world.state = "aiming";
     world.pointerId = e.pointerId;
@@ -1742,6 +1799,7 @@ function onPointerDown(e) {
     world.ball.vx = 0;
     world.ball.vy = 0;
     canvas.setPointerCapture(e.pointerId);
+    syncTutorialOverlay();
   }
 }
 
@@ -1755,6 +1813,7 @@ function onPointerUp(e) {
   if (world.dragging && world.state === "aiming") launchBall();
   world.dragging = false;
   world.pointerId = null;
+  syncTutorialOverlay();
 }
 
 function clampToMaxStretch(x, y, anchor) {
@@ -1793,6 +1852,8 @@ function launchBall() {
   world.hookCooldown = b.vy > 0 ? Math.min(cfg.rehookCooldown, downwardLaunchCooldown) : cfg.rehookCooldown;
   world.launchGraceTimer = cfg.launchGraceSec;
   world.hasHookedSinceLaunch = false;
+  markTutorialSeen();
+  syncTutorialOverlay();
 }
 
 function hookToAnchor(anchor) {
@@ -2449,6 +2510,7 @@ function collideBounds() {
 
 function update(dt) {
   world.timeSec += dt;
+  syncTutorialOverlay();
   updateGear(dt);
   updateMovingTrack(dt);
   if (world.deathFx.active && world.deathFx.previewOnly) {
@@ -2510,6 +2572,7 @@ function update(dt) {
   if (world.state === "launched" || world.state === "tethered") {
     updateMeters();
   }
+  syncTutorialOverlay();
 }
 
 function toScreenY(worldY) {
@@ -2518,6 +2581,41 @@ function toScreenY(worldY) {
 
 function toScreenX(worldX) {
   return worldX - world.cameraX;
+}
+
+function drawBackgroundMeterMarks() {
+  const pxPerMeter = Math.max(1, cfg.pxPerMeter || 100);
+  const interval = BG_METER_MARK_INTERVAL;
+  const startY = Number.isFinite(world.startY) ? world.startY : world.ball.y;
+  const topWorldY = world.cameraY;
+  const bottomWorldY = world.cameraY + world.h;
+  const topMeter = Math.max(0, (startY - topWorldY) / pxPerMeter);
+  const bottomMeter = Math.max(0, (startY - bottomWorldY) / pxPerMeter);
+  const firstMark = Math.ceil(bottomMeter / interval) * interval;
+  const lastMark = Math.floor(topMeter / interval) * interval;
+
+  if (lastMark < firstMark) return;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+  ctx.lineWidth = 1;
+  ctx.font = "600 12px sans-serif";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "right";
+
+  for (let meter = firstMark; meter <= lastMark; meter += interval) {
+    const worldY = startY - meter * pxPerMeter;
+    const sy = toScreenY(worldY);
+    if (sy < -24 || sy > world.h + 24) continue;
+    ctx.beginPath();
+    ctx.moveTo(18, sy);
+    ctx.lineTo(world.w - 18, sy);
+    ctx.stroke();
+    ctx.fillText(`${meter}m`, world.w - 24, sy - 12);
+  }
+
+  ctx.restore();
 }
 
 function drawBackground() {
@@ -2567,6 +2665,8 @@ function drawBackground() {
       ctx.fill();
     }
   }
+
+  drawBackgroundMeterMarks();
 
   const haze = ctx.createLinearGradient(0, world.h * 0.55, 0, world.h);
   haze.addColorStop(0, "rgba(255,255,255,0)");
@@ -3410,6 +3510,14 @@ if (jellyDefaultBtn) {
     syncJellyPanelFromCfg();
     saveJellyCfgToStorage();
     setJellyStatus("已恢复果冻形变默认参数。");
+  });
+}
+
+if (tutorialResetBtn) {
+  tutorialResetBtn.addEventListener("click", () => {
+    clearTutorialSeen();
+    syncTutorialOverlay();
+    setStatus("已清除新手引导记录，可再次看到首次引导。");
   });
 }
 

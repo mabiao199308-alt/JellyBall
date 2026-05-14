@@ -13,6 +13,13 @@
           <div class="hud-meter" id="meterDisplay">高度：0.0</div>
         </div>
         <div class="fps-display" id="fpsDisplay">FPS: --</div>
+        <div class="tutorial-overlay is-hidden" id="tutorialOverlay" aria-hidden="true">
+          <div class="tutorial-overlay__text">拉动果冻，松手发射！</div>
+          <div class="tutorial-overlay__gesture">
+            <div class="tutorial-overlay__trail"></div>
+            <img class="tutorial-overlay__hand" src="./HandPointer.png" alt="滑动手势" />
+          </div>
+        </div>
         <canvas id="gameCanvas"></canvas>
       </section>
 
@@ -66,6 +73,7 @@
       <button class="debug-toggle debug-toggle--jelly" id="jellyDebugToggleBtn" type="button">显示果冻形变调试</button>
       <button class="debug-toggle debug-toggle--hazard" id="hazardDebugToggleBtn" type="button">显示障碍生成调试</button>
       <a class="preview-entry" href="./jelly_preview.html" target="_blank" rel="noopener noreferrer">查看大果冻</a>
+      <button class="preview-entry preview-entry--tutorial" id="tutorialResetBtn" type="button">重置引导</button>
     </main>
 
     <script src="./ball_visual.js"></script>

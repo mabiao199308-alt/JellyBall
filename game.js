@@ -1585,7 +1585,7 @@ function createMovingTrack() {
   const yOffset = Math.max(190, Math.min(280, world.h * 0.3));
   const travelHalf = Math.max(40, width * 0.5 - 28);
   const pinX = world.w * 0.5;
-  const pinRadius = Math.max(10, Math.min(14, height * 0.44));
+  const pinRadius = 8;
   // 保持按轨道高度自适应，只把整体尺寸系数调大到“约 35”
   const gearRadius = Math.max(22, Math.min(35, height * 1.1));
   return {
@@ -3178,7 +3178,8 @@ function drawMovingTrack() {
     ctx.translate(pinSX, sy);
     ctx.globalAlpha = pinFuse.alpha * pinSpawnAnim.alpha;
     const pinStyle = getAnchorVisualStyle(t.pinAnchor, pinFuse.flash);
-    const pinAnchorRadius = Math.max(6, t.pinRadius - 4);
+    // 与普通钉子保持同等视觉尺寸：外圈半径 = anchorRadius + 10
+    const pinAnchorRadius = Math.max(1, t.pinRadius);
     const baseOuterR = pinAnchorRadius + 10;
     const outerR = baseOuterR * pinSpawnAnim.scale;
     const ringR = Math.max(2, outerR - 4);

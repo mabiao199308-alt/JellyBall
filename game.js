@@ -12,6 +12,7 @@ const deathFxDebugPanelBody = document.getElementById("deathFxDebugPanelBody");
 const deathFxDebugPanel = document.getElementById("deathFxDebugPanel");
 const deathFxDebugToggleBtn = document.getElementById("deathFxDebugToggleBtn");
 const deathFxPreviewBtn = document.getElementById("deathFxPreviewBtn");
+const deathFxPlaySfxBtn = document.getElementById("deathFxPlaySfxBtn");
 const deathFxDefaultBtn = document.getElementById("deathFxDefaultBtn");
 const jellyDebugPanelBody = document.getElementById("jellyDebugPanelBody");
 const jellyDebugPanel = document.getElementById("jellyDebugPanel");
@@ -42,6 +43,13 @@ const JELLY_HANG_IDLE_SETTLE = 14;
 const JELLY_TETHER_DEFORM_DEADZONE_PX = 3;
 const JELLY_TETHER_SPEED_DEADZONE = 18;
 const JELLY_TETHER_RADIAL_DEADZONE = 12;
+const WALL_HIT_SFX_CANDIDATES = ["./Arrive_1.wav", "./Arrive_1.mp3", "./Arrive_1.ogg", "./Arrive_1.m4a"];
+const WALL_HIT_SFX_COOLDOWN_SEC = 0.06;
+const WALL_HIT_SFX_MIN_IMPACT = 80;
+const WALL_HIT_SFX_GAIN = 0.65;
+const WALL_HIT_SFX_MUTE_AFTER_DEATH_SEC = 0.28;
+const DEATH_POP_SFX_CANDIDATES = ["./dead.mp3"];
+const DEATH_POP_GAIN = 0.92;
 const TRACK_ENABLED = true;
 const TRACK_PIN_SPEED = 90;
 const TRACK_EXCLUSIVE_OPENING = false;
@@ -72,6 +80,7 @@ const GEAR_SLOT_INTERVAL_MIN = 3;
 const GEAR_ANCHOR_BLOCK_Y = 190;
 const GEAR_ANCHOR_BLOCK_X_PAD = 74;
 const GEAR_SAFE_ANCHOR_MIN_X_GAP = 130;
+const HAZARD_UNLOCK_METERS = 120;
 const HAZARD_DENSITY_START_METERS = 60;
 const HAZARD_DENSITY_FULL_METERS = 260;
 const RED_ANCHOR_BLINK_DELAY = 0.5;
@@ -80,6 +89,16 @@ const RED_ANCHOR_RESPAWN_DELAY = 2;
 const RED_ANCHOR_BLINK_PERIOD_START = 0.5;
 const RED_ANCHOR_BLINK_PERIOD_END = 0.2;
 const RED_ANCHOR_BLINK_ACCEL_START = 0.36;
+const RED_ANCHOR_SPAWN_ANIM_DURATION = 0.22;
+const RED_ALARM_BEEP_DURATION = 0.055;
+const RED_ALARM_GAIN = 0.032;
+const BG_CLOUD_BAND_HEIGHT = 340;
+const BG_CLOUD_BAND_PADDING = 8;
+const BG_CLOUD_PARALLAX_MIN = 0.16;
+const BG_CLOUD_PARALLAX_MAX = 0.34;
+const BG_HAZE_PARTICLE_DENSITY = 1 / 17000;
+const BG_HAZE_PARTICLE_MIN = 20;
+const BG_HAZE_PARTICLE_MAX = 44;
 
 const defaultCfg = {
   gravity: 2060,
@@ -187,6 +206,17 @@ let showAdvancedParams = false;
 let debugPanelVisible = false;
 let deathFxPanelVisible = false;
 let jellyPanelVisible = false;
+let audioCtx = null;
+let redAlarmMasterGain = null;
+let wallHitMasterGain = null;
+let wallHitAudioBuffer = null;
+let wallHitAudioLoadStarted = false;
+let wallHitLastPlaySec = -999;
+let wallHitMuteUntilSec = -999;
+let deathPopMasterGain = null;
+let deathPopAudioBuffer = null;
+let deathPopAudioLoadStarted = false;
+let deathPopLastPlaySec = -999;
 
 normalizeDeathFxCfg();
 
@@ -248,13 +278,117 @@ const world = {
   breakFlash: 0,
   hookFlash: 0,
   hookCooldown: 0,
+  redAlarmFlashOn: false,
   lastTetherSnapSec: -999,
   lastHookSec: -999,
   tetheredSinceSec: -999,
   launchGraceTimer: 0,
   hasHookedSinceLaunch: false,
   deathFx: createEmptyDeathFx(),
+  background: createBackgroundState(),
 };
+
+function createBackgroundState() {
+  return {
+    seed: rand(0, Math.PI * 2),
+    cloudBands: new Map(),
+    hazeParticles: [],
+  };
+}
+
+function createCloudBand(bandIndex) {
+  const bandTop = bandIndex * BG_CLOUD_BAND_HEIGHT;
+  const clouds = [];
+  const cloudCount = randInt(2, 4);
+  const widthBase = Math.max(120, world.w * 0.22);
+  const widthMax = Math.max(widthBase + 60, world.w * 0.58);
+
+  for (let i = 0; i < cloudCount; i += 1) {
+    const width = rand(widthBase, widthMax);
+    const height = width * rand(0.2, 0.34);
+    clouds.push({
+      x: rand(-world.w * 0.25, world.w * 1.25),
+      y: bandTop + rand(40, BG_CLOUD_BAND_HEIGHT - 42),
+      width,
+      height,
+      alpha: rand(0.15, 0.34),
+      driftAmp: rand(8, 26),
+      driftFreq: rand(0.045, 0.1),
+      phase: rand(0, Math.PI * 2),
+      parallax: rand(BG_CLOUD_PARALLAX_MIN, BG_CLOUD_PARALLAX_MAX),
+      tint: rand(0, 1),
+    });
+  }
+
+  return { bandIndex, clouds };
+}
+
+function rebuildBackground() {
+  const bg = world.background || createBackgroundState();
+  bg.cloudBands.clear();
+  bg.hazeParticles.length = 0;
+
+  const particleTarget = clamp(
+    Math.round(world.w * world.h * BG_HAZE_PARTICLE_DENSITY),
+    BG_HAZE_PARTICLE_MIN,
+    BG_HAZE_PARTICLE_MAX,
+  );
+
+  for (let i = 0; i < particleTarget; i += 1) {
+    bg.hazeParticles.push({
+      nx: rand(0, 1),
+      ny: rand(0, 1),
+      radius: rand(18, 64),
+      alpha: rand(0.035, 0.12),
+      driftAmp: rand(5, 28),
+      driftFreq: rand(0.06, 0.22),
+      phase: rand(0, Math.PI * 2),
+    });
+  }
+
+  world.background = bg;
+}
+
+function ensureBackgroundCloudBands() {
+  const bg = world.background;
+  if (!bg) return;
+
+  const viewTop = world.cameraY - world.h * 0.75;
+  const viewBottom = world.cameraY + world.h * 1.35;
+  const minBand = Math.floor(viewTop / BG_CLOUD_BAND_HEIGHT);
+  const maxBand = Math.floor(viewBottom / BG_CLOUD_BAND_HEIGHT);
+
+  for (let band = minBand; band <= maxBand; band += 1) {
+    if (!bg.cloudBands.has(band)) bg.cloudBands.set(band, createCloudBand(band));
+  }
+
+  const keepMin = minBand - BG_CLOUD_BAND_PADDING;
+  const keepMax = maxBand + BG_CLOUD_BAND_PADDING;
+  for (const band of bg.cloudBands.keys()) {
+    if (band < keepMin || band > keepMax) bg.cloudBands.delete(band);
+  }
+}
+
+function drawSoftCloud(cx, cy, width, height, alpha, tint) {
+  const left = cx - width * 0.5;
+  const right = cx + width * 0.5;
+  const tone = Math.round(248 - tint * 16);
+
+  ctx.fillStyle = `rgba(${tone}, ${tone + 3}, 255, ${alpha})`;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, width * 0.34, height * 0.34, 0, 0, Math.PI * 2);
+  ctx.ellipse(left + width * 0.34, cy + height * 0.05, width * 0.22, height * 0.24, 0, 0, Math.PI * 2);
+  ctx.ellipse(right - width * 0.28, cy + height * 0.03, width * 0.2, height * 0.22, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  const rim = ctx.createLinearGradient(cx, cy - height * 0.4, cx, cy + height * 0.45);
+  rim.addColorStop(0, `rgba(255,255,255,${alpha * 0.9})`);
+  rim.addColorStop(1, `rgba(255,255,255,0)`);
+  ctx.fillStyle = rim;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - height * 0.05, width * 0.36, height * 0.24, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
 
 function loadCfgFromStorage() {
   const next = { ...defaultCfg };
@@ -579,6 +713,166 @@ function randInt(min, max) {
   return Math.floor(rand(min, max + 1));
 }
 
+function getAudioCtx() {
+  if (audioCtx) return audioCtx;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  audioCtx = new Ctx();
+  redAlarmMasterGain = audioCtx.createGain();
+  redAlarmMasterGain.gain.value = RED_ALARM_GAIN;
+  redAlarmMasterGain.connect(audioCtx.destination);
+  wallHitMasterGain = audioCtx.createGain();
+  wallHitMasterGain.gain.value = WALL_HIT_SFX_GAIN;
+  wallHitMasterGain.connect(audioCtx.destination);
+  deathPopMasterGain = audioCtx.createGain();
+  deathPopMasterGain.gain.value = DEATH_POP_GAIN;
+  deathPopMasterGain.connect(audioCtx.destination);
+  return audioCtx;
+}
+
+async function loadWallHitAudioBuffer() {
+  const aCtx = getAudioCtx();
+  if (!aCtx || wallHitAudioLoadStarted || wallHitAudioBuffer) return;
+  wallHitAudioLoadStarted = true;
+  for (const src of WALL_HIT_SFX_CANDIDATES) {
+    try {
+      const res = await fetch(src);
+      if (!res.ok) continue;
+      const arr = await res.arrayBuffer();
+      const decoded = await aCtx.decodeAudioData(arr.slice(0));
+      if (decoded) {
+        wallHitAudioBuffer = decoded;
+        return;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+}
+
+async function loadDeathPopAudioBuffer() {
+  const aCtx = getAudioCtx();
+  if (!aCtx || deathPopAudioLoadStarted || deathPopAudioBuffer) return;
+  deathPopAudioLoadStarted = true;
+  for (const src of DEATH_POP_SFX_CANDIDATES) {
+    try {
+      const res = await fetch(src);
+      if (!res.ok) continue;
+      const arr = await res.arrayBuffer();
+      const decoded = await aCtx.decodeAudioData(arr.slice(0));
+      if (decoded) {
+        deathPopAudioBuffer = decoded;
+        return;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+}
+
+function ensureAudioReady() {
+  const aCtx = getAudioCtx();
+  if (!aCtx) return;
+  if (aCtx.state === "suspended") {
+    aCtx.resume().catch(() => {
+      // ignore resume rejection
+    });
+  }
+  if (!wallHitAudioBuffer && !wallHitAudioLoadStarted) {
+    loadWallHitAudioBuffer();
+  }
+  if (!deathPopAudioBuffer && !deathPopAudioLoadStarted) {
+    loadDeathPopAudioBuffer();
+  }
+}
+
+function playWallHitSfx(impact, options = {}) {
+  const force = options.force === true;
+  const aCtx = getAudioCtx();
+  if (!aCtx || !wallHitMasterGain || aCtx.state !== "running") return false;
+  if (world.state === "dying") return false;
+  if (world.timeSec < wallHitMuteUntilSec) return false;
+  if (!wallHitAudioBuffer) return false;
+  if (!force && impact < WALL_HIT_SFX_MIN_IMPACT) return false;
+  const minGap = force ? 0.015 : WALL_HIT_SFX_COOLDOWN_SEC;
+  if (world.timeSec - wallHitLastPlaySec < minGap) return false;
+  wallHitLastPlaySec = world.timeSec;
+
+  const src = aCtx.createBufferSource();
+  src.buffer = wallHitAudioBuffer;
+  const gain = aCtx.createGain();
+  gain.gain.value = clamp(0.25 + (impact - WALL_HIT_SFX_MIN_IMPACT) / 500, 0.25, 1);
+  src.connect(gain);
+  gain.connect(wallHitMasterGain);
+  src.start(aCtx.currentTime + 0.001);
+  return true;
+}
+
+function playDeathPopShot() {
+  const aCtx = getAudioCtx();
+  if (!aCtx || !deathPopMasterGain || aCtx.state !== "running") return false;
+  if (world.timeSec - deathPopLastPlaySec < 0.08) return false;
+  if (!deathPopAudioBuffer) return false;
+  deathPopLastPlaySec = world.timeSec;
+
+  const src = aCtx.createBufferSource();
+  src.buffer = deathPopAudioBuffer;
+  const gain = aCtx.createGain();
+  gain.gain.value = 1;
+  src.connect(gain);
+  gain.connect(deathPopMasterGain);
+  src.start(aCtx.currentTime + 0.001);
+
+  return true;
+}
+
+function playRedAlarmFlashShot() {
+  const aCtx = getAudioCtx();
+  if (!aCtx || !redAlarmMasterGain || aCtx.state !== "running") return false;
+  const startAt = aCtx.currentTime + 0.005;
+
+  // 每次闪烁仅播放一次短促提示音
+  const osc = aCtx.createOscillator();
+  const gain = aCtx.createGain();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(1760, startAt);
+  gain.gain.setValueAtTime(0.0001, startAt);
+  gain.gain.exponentialRampToValueAtTime(0.62, startAt + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + RED_ALARM_BEEP_DURATION);
+  osc.connect(gain);
+  gain.connect(redAlarmMasterGain);
+  osc.start(startAt);
+  osc.stop(startAt + RED_ALARM_BEEP_DURATION + 0.015);
+
+  return true;
+}
+
+function isAnchorInBlinkPhase(anchor) {
+  if (!anchor || !anchor.isRed || !anchor.fuseStarted) return false;
+  const elapsed = world.timeSec - anchor.fuseStartSec;
+  return elapsed > RED_ANCHOR_BLINK_DELAY && elapsed < RED_ANCHOR_VANISH_DELAY;
+}
+
+function hasBlinkingRedAnchorFlash() {
+  for (const a of world.anchors) {
+    if (!isAnchorInBlinkPhase(a)) continue;
+    if (getAnchorFuseState(a).flash > 0.5) return true;
+  }
+  const t = world.movingTrack;
+  if (t && t.activated && world.timeSec >= t.hiddenUntilSec && isAnchorInBlinkPhase(t.pinAnchor)) {
+    if (getAnchorFuseState(t.pinAnchor).flash > 0.5) return true;
+  }
+  return false;
+}
+
+function updateRedAlarm() {
+  const flashNow = hasBlinkingRedAnchorFlash();
+  if (flashNow && !world.redAlarmFlashOn) {
+    playRedAlarmFlashShot();
+  }
+  world.redAlarmFlashOn = flashNow;
+}
+
 function createAnchor(x, y, radius = 8, options = {}) {
   const useFixedId = Number.isInteger(options.id);
   const id = useFixedId ? options.id : world.anchorIdSeed++;
@@ -592,7 +886,13 @@ function createAnchor(x, y, radius = 8, options = {}) {
     isRed,
     fuseStarted: false,
     fuseStartSec: 0,
+    spawnAnimStartSec: Number.isFinite(options.spawnAnimStartSec) ? options.spawnAnimStartSec : -999,
   };
+}
+
+function triggerRedAnchorSpawnAnim(anchor) {
+  if (!anchor || !anchor.isRed) return;
+  anchor.spawnAnimStartSec = world.timeSec;
 }
 
 function startRedAnchorFuse(anchor) {
@@ -682,6 +982,7 @@ function addAnchorAbove(yOverride = null, forcedSide = 0) {
 
 function canSpawnTrackFromGenerator() {
   if (!TRACK_ENABLED || !world.movingTrack) return false;
+  if (world.runMeters < HAZARD_UNLOCK_METERS) return false;
   if (world.anchorSpawnCount < TRACK_UNLOCK_ANCHOR_COUNT) return false;
   const t = world.movingTrack;
   if (!t.activated) return true;
@@ -700,6 +1001,7 @@ function shouldSpawnTrackOnNextSlot() {
 
 function canSpawnGearFromGenerator() {
   if (!GEAR_ENABLED) return false;
+  if (world.runMeters < HAZARD_UNLOCK_METERS) return false;
   if (world.anchorSpawnCount < GEAR_UNLOCK_ANCHOR_COUNT) return false;
   if (world.gearSlotsSinceSpawn < GEAR_SLOT_INTERVAL) return false;
   return true;
@@ -814,6 +1116,7 @@ function createMovingTrack() {
     pinSpeed: TRACK_PIN_SPEED,
     pinRadius: Math.max(10, Math.min(14, height * 0.44)),
     hiddenUntilSec: 0,
+    wasPinVisible: true,
     activated: false,
     pinAnchor: createAnchor(pinX, world.h * 0.75 - yOffset, Math.max(10, Math.min(14, height * 0.44)), {
       isRed: pinIsRed,
@@ -842,8 +1145,13 @@ function spawnMovingTrackAtY(track, y) {
     track.pinAnchor.isRed = Math.random() < 0.5;
     track.pinAnchor.fuseStarted = false;
     track.pinAnchor.fuseStartSec = 0;
+    track.pinAnchor.spawnAnimStartSec = -999;
   }
   track.hiddenUntilSec = world.timeSec;
+  track.wasPinVisible = true;
+  if (track.pinAnchor && track.pinAnchor.isRed) {
+    triggerRedAnchorSpawnAnim(track.pinAnchor);
+  }
 }
 
 function addGeneratedSlotAbove() {
@@ -915,12 +1223,16 @@ function resetRun() {
   world.breakFlash = 0;
   world.hookFlash = 0;
   world.hookCooldown = 0;
+  world.redAlarmFlashOn = false;
   world.lastTetherSnapSec = -999;
   world.lastHookSec = -999;
   world.tetheredSinceSec = -999;
   world.launchGraceTimer = 0;
   world.hasHookedSinceLaunch = false;
   world.deathFx = createEmptyDeathFx();
+  wallHitLastPlaySec = -999;
+  wallHitMuteUntilSec = -999;
+  deathPopLastPlaySec = -999;
   world.startY = world.ball.y;
   world.minY = world.ball.y;
   world.runMeters = 0;
@@ -1085,6 +1397,7 @@ function resize() {
 
   world.w = width;
   world.h = height;
+  rebuildBackground();
   resetRun();
 }
 
@@ -1097,6 +1410,7 @@ function toWorldPoint(e) {
 }
 
 function onPointerDown(e) {
+  ensureAudioReady();
   if (world.state === "gameover") {
     resetRun();
     setStatus("已重开本局。");
@@ -1198,6 +1512,7 @@ function hookToAnchor(anchor) {
   const hookImpact = Math.max(Math.abs(radialSpeed), Math.abs(tangentialSpeed) * 0.55);
   const hookImpactRatio = Math.max(0, Math.min(1, hookImpact / 1200));
   const hookDeform = 0.38 + hookImpactRatio * 0.62;
+  playWallHitSfx(Math.max(hookImpact, WALL_HIT_SFX_MIN_IMPACT + 30), { force: true });
   kickJelly(hookDeform, 0);
   world.lastHookSec = world.timeSec;
   world.tetheredSinceSec = world.timeSec;
@@ -1279,7 +1594,12 @@ function updateAnchorFuse() {
   for (let i = world.redAnchorRespawns.length - 1; i >= 0; i -= 1) {
     const pending = world.redAnchorRespawns[i];
     if (world.timeSec < pending.respawnAtSec) continue;
-    world.anchors.push(createAnchor(pending.x, pending.y, pending.radius, { id: pending.id, isRed: true }));
+    const respawned = createAnchor(pending.x, pending.y, pending.radius, {
+      id: pending.id,
+      isRed: true,
+      spawnAnimStartSec: world.timeSec,
+    });
+    world.anchors.push(respawned);
     world.redAnchorRespawns.splice(i, 1);
   }
 
@@ -1337,6 +1657,7 @@ function updateMovingTrack(dt) {
   if (!TRACK_ENABLED || !world.movingTrack) return;
   const t = world.movingTrack;
   if (!t.activated) return;
+  const wasPinVisible = world.timeSec >= t.hiddenUntilSec;
 
   if (t.pinAnchor && t.pinAnchor.isRed && t.pinAnchor.fuseStarted) {
     const elapsed = world.timeSec - t.pinAnchor.fuseStartSec;
@@ -1368,6 +1689,12 @@ function updateMovingTrack(dt) {
   t.pinAnchor.x = pinX;
   t.pinAnchor.y = t.y;
   t.pinAnchor.radius = t.pinRadius;
+
+  const pinVisibleNow = world.timeSec >= t.hiddenUntilSec;
+  if (!wasPinVisible && pinVisibleNow && t.pinAnchor && t.pinAnchor.isRed) {
+    triggerRedAnchorSpawnAnim(t.pinAnchor);
+  }
+  t.wasPinVisible = pinVisibleNow;
 }
 
 function checkMovingTrackHit() {
@@ -1611,6 +1938,15 @@ function startDeathFx(originX, originY, options = {}) {
   fx.originY = impactY;
   fx.floorY = floorY;
 
+  const bigCount = Math.max(0, Math.round(deathFxCfg.bigBurstCount));
+  const smallCount = Math.max(0, Math.round(deathFxCfg.smallBurstCount));
+  for (let i = 0; i < bigCount; i += 1) {
+    spawnJuiceBurstParticle(fx, impactX, impactY, palette, true);
+  }
+  for (let i = 0; i < smallCount; i += 1) {
+    spawnJuiceBurstParticle(fx, impactX, impactY, palette, false);
+  }
+
   const topBand = world.h * 0.24;
   const bottomBand = world.h * 0.76;
   const yDir = impactY > bottomBand ? -1 : 1;
@@ -1642,6 +1978,8 @@ function startDeathFx(originX, originY, options = {}) {
 
   world.deathFx = fx;
   if (!previewOnly) {
+    wallHitMuteUntilSec = world.timeSec + WALL_HIT_SFX_MUTE_AFTER_DEATH_SEC;
+    playDeathPopShot();
     world.state = "dying";
     world.dragging = false;
     world.pointerId = null;
@@ -1675,7 +2013,33 @@ function updateDeathFx(dt) {
       if (p.vx > 0) p.vx *= -0.22;
     }
 
-    if (p.y + p.radius >= p.floorY || p.life <= 0) {
+    if (p.y + p.radius >= p.floorY) {
+      const splatScale = clamp(
+        p.scale * rand(deathFxCfg.burstToSplatScaleMin, deathFxCfg.burstToSplatScaleMax),
+        0.22,
+        2.4,
+      );
+      fx.splats.push(
+        createJuiceSplat(
+          clamp(p.x, 10, world.w - 10),
+          clamp(p.floorY + rand(-6, 6), 8, world.h - 8),
+          p.color,
+          1,
+          splatScale,
+          {
+            cluster: p.scale > 0.95,
+            lobeMin: p.scale > 0.95 ? 3 : 2,
+            lobeMax: p.scale > 0.95 ? 6 : 4,
+            dotMin: p.scale > 0.95 ? 4 : 2,
+            dotMax: p.scale > 0.95 ? 7 : 4,
+          },
+        ),
+      );
+      fx.burstParticles.splice(i, 1);
+      continue;
+    }
+
+    if (p.life <= 0) {
       fx.burstParticles.splice(i, 1);
     }
   }
@@ -1710,6 +2074,7 @@ function collideBounds() {
     b.x = r;
     b.vx = -b.vx * cfg.restitution;
     b.vy *= cfg.wallFriction;
+    playWallHitSfx(impact);
     if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
   }
   if (b.x > world.w - r) {
@@ -1717,6 +2082,7 @@ function collideBounds() {
     b.x = world.w - r;
     b.vx = -b.vx * cfg.restitution;
     b.vy *= cfg.wallFriction;
+    playWallHitSfx(impact);
     if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
   }
   const top = world.cameraY + r;
@@ -1725,6 +2091,7 @@ function collideBounds() {
     b.y = top;
     b.vy = -b.vy * cfg.restitution;
     b.vx *= cfg.wallFriction;
+    playWallHitSfx(impact);
     if (impact > 80) kickJelly(Math.min(0.54, 0.16 + impact / 1200), Math.min(0.48, 0.14 + impact / 1550));
   }
 }
@@ -1742,6 +2109,7 @@ function update(dt) {
   }
 
   updateAnchorFuse();
+  updateRedAlarm();
 
   const draggingAim = world.dragging && world.state === "aiming";
   if (draggingAim) {
@@ -1801,15 +2169,24 @@ function toScreenX(worldX) {
 }
 
 function drawBackground() {
-  const skyOffsetX = -world.cameraX * 0.18;
+  ensureBackgroundCloudBands();
+
+  const bg = world.background;
+  const altitudeT = clamp01((-world.cameraY) / (cfg.pxPerMeter * 520));
+  const skyTop = mixRgb([125, 211, 252], [56, 189, 248], altitudeT * 0.6);
+  const skyMid = mixRgb([186, 230, 253], [125, 211, 252], altitudeT * 0.5);
+  const skyBottom = mixRgb([224, 242, 254], [186, 230, 253], altitudeT * 0.42);
+
+  const skyOffsetX = -world.cameraX * 0.14;
+  const sunDrift = Math.sin(world.timeSec * 0.055 + (bg?.seed || 0)) * world.w * 0.04;
   const g = ctx.createLinearGradient(0, 0, 0, world.h);
-  g.addColorStop(0, "#7dd3fc");
-  g.addColorStop(0.45, "#bae6fd");
-  g.addColorStop(1, "#e0f2fe");
+  g.addColorStop(0, skyTop);
+  g.addColorStop(0.46, skyMid);
+  g.addColorStop(1, skyBottom);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, world.w, world.h);
 
-  const sunX = world.w * 0.78 + skyOffsetX;
+  const sunX = world.w * 0.78 + skyOffsetX + sunDrift;
   const sunGlow = ctx.createRadialGradient(sunX, world.h * 0.16, 12, sunX, world.h * 0.16, world.w * 0.22);
   sunGlow.addColorStop(0, "rgba(255, 245, 180, 0.95)");
   sunGlow.addColorStop(0.45, "rgba(255, 236, 153, 0.45)");
@@ -1823,6 +2200,38 @@ function drawBackground() {
   ctx.beginPath();
   ctx.arc(sunX, world.h * 0.16, Math.min(world.w, world.h) * 0.06, 0, Math.PI * 2);
   ctx.fill();
+
+  if (bg && bg.cloudBands.size > 0) {
+    const sortedBands = Array.from(bg.cloudBands.keys()).sort((a, b) => a - b);
+    for (const band of sortedBands) {
+      const data = bg.cloudBands.get(band);
+      if (!data) continue;
+      for (const cloud of data.clouds) {
+        const drift = Math.sin(world.timeSec * cloud.driftFreq + cloud.phase) * cloud.driftAmp;
+        const sx = cloud.x - world.cameraX * cloud.parallax + drift;
+        const sy = cloud.y - world.cameraY * cloud.parallax;
+        if (sx < -cloud.width || sx > world.w + cloud.width) continue;
+        if (sy < -cloud.height || sy > world.h + cloud.height) continue;
+        drawSoftCloud(sx, sy, cloud.width, cloud.height, cloud.alpha, cloud.tint);
+      }
+    }
+  }
+
+  if (bg && bg.hazeParticles.length > 0) {
+    for (const p of bg.hazeParticles) {
+      const driftX = Math.sin(world.timeSec * p.driftFreq + p.phase) * p.driftAmp;
+      const driftY = Math.cos(world.timeSec * (p.driftFreq * 0.7) + p.phase) * p.driftAmp * 0.45;
+      const x = p.nx * world.w + driftX - world.cameraX * 0.05;
+      const y = p.ny * world.h + driftY - world.cameraY * 0.02;
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, p.radius);
+      glow.addColorStop(0, `rgba(255,255,255,${p.alpha})`);
+      glow.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   const haze = ctx.createLinearGradient(0, world.h * 0.55, 0, world.h);
   haze.addColorStop(0, "rgba(255,255,255,0)");
@@ -1901,14 +2310,24 @@ function drawMovingTrack() {
 
   if (pinVisible && t.pinAnchor) {
     const pinFuse = getAnchorFuseState(t.pinAnchor);
+    const pinSpawnAnim = getRedAnchorSpawnAnimState(t.pinAnchor);
     ctx.save();
     ctx.translate(pinSX, sy);
-    ctx.globalAlpha = pinFuse.alpha;
+    ctx.globalAlpha = pinFuse.alpha * pinSpawnAnim.alpha;
     const pinStyle = getAnchorVisualStyle(t.pinAnchor, pinFuse.flash);
   const pinAnchorRadius = Math.max(6, t.pinRadius - 4);
-  const outerR = pinAnchorRadius + 10;
-  const ringR = outerR - 4;
-  const coreR = outerR - 8.5;
+  const baseOuterR = pinAnchorRadius + 10;
+  const outerR = baseOuterR * pinSpawnAnim.scale;
+  const ringR = Math.max(2, outerR - 4);
+  const coreR = Math.max(1, outerR - 8.5);
+
+  if (pinSpawnAnim.ringAlpha > 0.001) {
+    ctx.strokeStyle = `rgba(255, 126, 126, ${pinSpawnAnim.ringAlpha})`;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(0, 0, baseOuterR * pinSpawnAnim.ringRadiusMul, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
   ctx.shadowBlur = 8;
@@ -2010,6 +2429,25 @@ function getAnchorFuseState(anchor) {
   const alpha = isOn ? 1 : lerp(0.78, 0.66, accel);
   const flash = isOn ? 1 : 0;
   return { alpha, flash };
+}
+
+function getRedAnchorSpawnAnimState(anchor) {
+  if (!anchor || !anchor.isRed || !Number.isFinite(anchor.spawnAnimStartSec)) {
+    return { scale: 1, alpha: 1, ringAlpha: 0, ringRadiusMul: 1 };
+  }
+  const elapsed = world.timeSec - anchor.spawnAnimStartSec;
+  if (elapsed < 0 || elapsed >= RED_ANCHOR_SPAWN_ANIM_DURATION) {
+    return { scale: 1, alpha: 1, ringAlpha: 0, ringRadiusMul: 1 };
+  }
+
+  const t = clamp01(elapsed / RED_ANCHOR_SPAWN_ANIM_DURATION);
+  const popT = t < 0.7 ? t / 0.7 : (t - 0.7) / 0.3;
+  const easedPop = Math.pow(clamp01(popT), 0.72);
+  const scale = t < 0.7 ? lerp(0.65, 1.08, easedPop) : lerp(1.08, 1, Math.pow(clamp01(popT), 0.9));
+  const alpha = lerp(0.35, 1, Math.pow(t, 0.65));
+  const ringAlpha = (1 - t) * (1 - t) * 0.44;
+  const ringRadiusMul = 0.82 + t * 1.05;
+  return { scale, alpha, ringAlpha, ringRadiusMul };
 }
 
 function getBallVisualRadius() {
@@ -2118,15 +2556,24 @@ function drawAnchors() {
 
     const isActive = a === world.activeAnchor;
     const fuse = getAnchorFuseState(a);
-    const fuseAlpha = fuse.alpha;
+    const spawnAnim = getRedAnchorSpawnAnimState(a);
+    const fuseAlpha = fuse.alpha * spawnAnim.alpha;
     const pulse = isActive ? 1 + world.hookFlash * 4 : 1;
     const style = getAnchorVisualStyle(a, fuse.flash);
-    const outerR = a.radius + 10;
-    const ringR = outerR - 4;
-    const coreR = outerR - 8.5;
+    const baseOuterR = a.radius + 10;
+    const outerR = baseOuterR * spawnAnim.scale;
+    const ringR = Math.max(2, outerR - 4);
+    const coreR = Math.max(1, outerR - 8.5);
 
     ctx.save();
     ctx.globalAlpha = fuseAlpha;
+    if (spawnAnim.ringAlpha > 0.001) {
+      ctx.strokeStyle = `rgba(255, 126, 126, ${spawnAnim.ringAlpha})`;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(sx, sy, baseOuterR * spawnAnim.ringRadiusMul, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
     ctx.shadowBlur = 10;
     ctx.shadowOffsetX = 0;
@@ -2469,6 +2916,14 @@ if (deathFxPreviewBtn) {
     const originY = world.state === "gameover" ? world.h * 0.78 : toScreenY(world.ball.y);
     startDeathFx(originX, originY, { previewOnly: true });
     setDeathFxStatus("已触发死亡特效预览。");
+  });
+}
+
+if (deathFxPlaySfxBtn) {
+  deathFxPlaySfxBtn.addEventListener("click", () => {
+    ensureAudioReady();
+    const played = playDeathPopShot();
+    setDeathFxStatus(played ? "已播放气球爆裂音效。" : "音频未就绪，请先点击画布再试。");
   });
 }
 

@@ -367,6 +367,7 @@ const world = {
   jellyHangIdleBlend: 0,
   jellyHangIdleLocked: false,
   jellyPhase: 0,
+  wallDizzyActive: false,
   timeSec: 0,
   state: "aiming", // aiming | launched | tethered | dying | gameover
   dragging: false,
@@ -1673,6 +1674,7 @@ function resetRun() {
   world.jellyHangIdleBlend = 0;
   world.jellyHangIdleLocked = false;
   world.jellyPhase = 0;
+  world.wallDizzyActive = false;
   world.timeSec = 0;
   world.redAnchorRespawns = [];
   world.state = "aiming";
@@ -1707,6 +1709,12 @@ function kickJelly(amount, wobbleBoost = amount * 1.1) {
   if (nextDeform > world.jellyDeform) world.jellyDeform = nextDeform;
   if (nextWobble > world.jellyWobble) world.jellyWobble = nextWobble;
   world.jellyPhase += Math.PI * 0.85;
+}
+
+function triggerWallDizzy(impact) {
+  if (world.state !== "launched") return;
+  if (!Number.isFinite(impact) || impact <= 1) return;
+  world.wallDizzyActive = true;
 }
 
 function updateJellyState(dt) {
@@ -1981,6 +1989,7 @@ function hookToAnchor(anchor) {
 
   world.activeAnchor = anchor;
   world.state = "tethered";
+  world.wallDizzyActive = false;
   world.hookFlash = cfg.breakFlashDuration;
   world.hookCooldown = cfg.rehookCooldown;
   world.hasHookedSinceLaunch = true;
@@ -2647,6 +2656,7 @@ function collideBounds() {
     b.vx = -b.vx * cfg.restitution;
     b.vy *= cfg.wallFriction;
     playWallHitSfx(impact);
+    triggerWallDizzy(impact);
     if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
   }
   if (b.x > world.w - r) {
@@ -2655,6 +2665,7 @@ function collideBounds() {
     b.vx = -b.vx * cfg.restitution;
     b.vy *= cfg.wallFriction;
     playWallHitSfx(impact);
+    triggerWallDizzy(impact);
     if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
   }
   const top = world.cameraY + r;
@@ -2664,6 +2675,7 @@ function collideBounds() {
     b.vy = -b.vy * cfg.restitution;
     b.vx *= cfg.wallFriction;
     playWallHitSfx(impact);
+    triggerWallDizzy(impact);
     if (impact > 80) kickJelly(Math.min(0.54, 0.16 + impact / 1200), Math.min(0.48, 0.14 + impact / 1550));
   }
 }
@@ -3496,6 +3508,8 @@ function drawBall() {
   renderDeform *= 1 - idleBlend * 0.88;
   renderWobble *= activeBlend * activeBlend;
 
+  const faceMode = world.wallDizzyActive ? "dizzy_spiral" : world.state === "launched" ? "flight_squint" : "normal";
+
   window.BallVisual.drawJellyBall(ctx, {
     x: sx,
     y: sy,
@@ -3507,7 +3521,7 @@ function drawBall() {
     wobbleOffset: renderWobble,
     lookDirX: world.lookDir.x,
     lookDirY: world.lookDir.y,
-    faceMode: world.state === "launched" ? "flight_squint" : "normal",
+    faceMode,
     cfg: ballVisualCfg,
     layerVisibility: jellyLayerVisibility,
   });

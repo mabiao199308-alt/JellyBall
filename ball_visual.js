@@ -331,7 +331,36 @@ function drawJellyBall(ctx, options = {}) {
       : eyeR * cfg.pupilHighlightY;
   const pupilHighlightR = r * cfg.pupilHighlightRadius;
 
-  if (faceMode === "flight_squint") {
+  if (faceMode === "dizzy_spiral") {
+    if (layerVisibility.pupils) {
+      const spiralTurns = 1.95;
+      const spiralSteps = 26;
+      const baseSpin = 0;
+      const spiralLineW = Math.max(1.05, r * 0.052);
+      ctx.strokeStyle = "rgba(17,17,17,0.88)";
+      ctx.lineWidth = spiralLineW;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+
+      const drawSpiral = (cx, cy, dir = 1) => {
+        ctx.beginPath();
+        for (let i = 0; i <= spiralSteps; i += 1) {
+          const t = i / spiralSteps;
+          const theta = dir * (t * spiralTurns * Math.PI * 2 + baseSpin);
+          const rr = eyeR * (0.1 + t * 0.76);
+          const x = cx + Math.cos(theta) * rr;
+          const y = cy + Math.sin(theta) * rr;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      };
+
+      drawSpiral(leftEyeX, eyeCenterY, 1);
+      drawSpiral(rightEyeX, eyeCenterY, -1);
+      markLayer("pupils", "螺旋眼", rightEyeX, eyeCenterY);
+    }
+  } else if (faceMode === "flight_squint") {
     const squintHalfW = eyeR * 0.62;
     const squintHalfH = eyeR * 0.48;
     const squintLineW = Math.max(1.6, r * 0.085);

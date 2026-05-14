@@ -22,6 +22,8 @@
         <div class="debug-panel__actions">
           <button id="toggleAdvancedBtn" type="button">显示全部</button>
           <button id="saveCfgBtn" type="button">保存参数</button>
+          <button id="saveAsDefaultBtn" type="button">保存到默认值</button>
+          <button id="copyCfgCodeBtn" type="button">保存到代码默认</button>
           <button id="defaultCfgBtn" type="button">恢复默认</button>
         </div>
         <p class="debug-panel__status" id="cfgStatus">参数实时生效，点击保存写入本地。</p>
@@ -47,9 +49,22 @@
         <p class="debug-panel__status" id="jellyCfgStatus">参数实时生效：重点调“蓄力拉满按住”的形变与晃动。</p>
       </aside>
 
+      <aside class="debug-panel debug-panel--hazard" id="hazardDebugPanel">
+        <h2>障碍生成调试</h2>
+        <div class="debug-panel__body" id="hazardDebugPanelBody"></div>
+        <div class="debug-panel__actions">
+          <button id="hazardSaveBtn" type="button">保存参数</button>
+          <button id="hazardSaveAsDefaultBtn" type="button">保存到默认值</button>
+          <button id="hazardDefaultBtn" type="button">恢复默认</button>
+        </div>
+        <p class="debug-panel__status" id="hazardCfgStatus">参数实时生效，点击保存写入本地。</p>
+      </aside>
+
       <button class="debug-toggle debug-toggle--physics" id="debugToggleBtn" type="button">显示调试</button>
       <button class="debug-toggle debug-toggle--deathfx" id="deathFxDebugToggleBtn" type="button">显示死亡特效调试</button>
       <button class="debug-toggle debug-toggle--jelly" id="jellyDebugToggleBtn" type="button">显示果冻形变调试</button>
+      <button class="debug-toggle debug-toggle--hazard" id="hazardDebugToggleBtn" type="button">显示障碍生成调试</button>
+      <a class="preview-entry" href="./jelly_preview.html" target="_blank" rel="noopener noreferrer">查看大果冻</a>
     </main>
 
     <script src="./ball_visual.js"></script>

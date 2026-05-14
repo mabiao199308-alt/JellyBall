@@ -19,15 +19,30 @@ const jellyDebugPanel = document.getElementById("jellyDebugPanel");
 const jellyDebugToggleBtn = document.getElementById("jellyDebugToggleBtn");
 const jellyDefaultBtn = document.getElementById("jellyDefaultBtn");
 const jellyCfgStatus = document.getElementById("jellyCfgStatus");
+const hazardDebugPanelBody = document.getElementById("hazardDebugPanelBody");
+const hazardDebugPanel = document.getElementById("hazardDebugPanel");
+const hazardDebugToggleBtn = document.getElementById("hazardDebugToggleBtn");
+const hazardSaveBtn = document.getElementById("hazardSaveBtn");
+const hazardSaveAsDefaultBtn = document.getElementById("hazardSaveAsDefaultBtn");
+const hazardDefaultBtn = document.getElementById("hazardDefaultBtn");
+const hazardCfgStatus = document.getElementById("hazardCfgStatus");
 const toggleAdvancedBtn = document.getElementById("toggleAdvancedBtn");
 const saveCfgBtn = document.getElementById("saveCfgBtn");
+const saveAsDefaultBtn = document.getElementById("saveAsDefaultBtn");
+const copyCfgCodeBtn = document.getElementById("copyCfgCodeBtn");
 const defaultCfgBtn = document.getElementById("defaultCfgBtn");
 const cfgStatus = document.getElementById("cfgStatus");
 const deathFxCfgStatus = document.getElementById("deathFxCfgStatus");
 
 const CFG_STORAGE_KEY = "swipe_debug_cfg_v2";
+const CFG_DEFAULT_OVERRIDE_KEY = "swipe_debug_default_cfg_v1";
 const BEST_STORAGE_KEY = "swipe_best_meters_v1";
 const JELLY_CFG_STORAGE_KEY = "swipe_jelly_cfg_v1";
+const JELLY_LAYER_VISIBILITY_KEY = "swipe_jelly_layer_visibility_v1";
+const HAZARD_CFG_STORAGE_KEY = "swipe_hazard_cfg_v1";
+const HAZARD_DEFAULT_OVERRIDE_KEY = "swipe_hazard_default_cfg_v1";
+const CODE_DEFAULT_SAVE_ENDPOINT = "/__save_code_defaults";
+const CODE_DEFAULT_SAVE_ENDPOINT_FALLBACK = "http://127.0.0.1:8130/__save_code_defaults";
 const ANCHOR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
 const LOOK_DIR_SMOOTH = 12;
 const JELLY_DEFORM_DECAY = 3.8;
@@ -55,9 +70,9 @@ const TRACK_PIN_SPEED = 90;
 const TRACK_EXCLUSIVE_OPENING = false;
 const TRACK_TO_ANCHOR_GAP_PX = 24;
 const TRACK_UNLOCK_ANCHOR_COUNT = 10;
-const TRACK_SLOT_INTERVAL = 6;
-const TRACK_SPAWN_CHANCE = 0.62;
-const TRACK_SPAWN_CHANCE_MAX = 0.9;
+const TRACK_SLOT_INTERVAL = 4;
+const TRACK_SPAWN_CHANCE = 0.75;
+const TRACK_SPAWN_CHANCE_MAX = 0.96;
 const TRACK_SLOT_INTERVAL_MIN = 3;
 const TRACK_ANCHOR_BLOCK_Y = 170;
 const TRACK_ANCHOR_BLOCK_X_RATIO = 0.72;
@@ -73,19 +88,37 @@ const GEAR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
 const GEAR_SPACING_MIN = 280;
 const GEAR_SPACING_MAX = 420;
 const GEAR_UNLOCK_ANCHOR_COUNT = 20;
-const GEAR_SLOT_INTERVAL = 5;
-const GEAR_SPAWN_CHANCE = 0.4;
-const GEAR_SPAWN_CHANCE_MAX = 0.72;
+const GEAR_SLOT_INTERVAL = 4;
+const GEAR_SPAWN_CHANCE = 0.55;
+const GEAR_SPAWN_CHANCE_MAX = 0.85;
 const GEAR_SLOT_INTERVAL_MIN = 3;
 const GEAR_ANCHOR_BLOCK_Y = 190;
 const GEAR_ANCHOR_BLOCK_X_PAD = 74;
 const GEAR_SAFE_ANCHOR_MIN_X_GAP = 130;
-const HAZARD_UNLOCK_METERS = 120;
-const HAZARD_DENSITY_START_METERS = 60;
+const TRACK_UNLOCK_METERS = 20;
+const GEAR_UNLOCK_METERS = 50;
+const TRACK_GEAR_UNLOCK_METERS = 100;
+const TRACK_GEAR_SPAWN_RATIO = 0.4;
+const HAZARD_DENSITY_START_METERS = 80;
 const HAZARD_DENSITY_FULL_METERS = 260;
+const defaultHazardCfg = {
+  trackUnlockMeters: TRACK_UNLOCK_METERS,
+  gearUnlockMeters: GEAR_UNLOCK_METERS,
+  trackGearUnlockMeters: TRACK_GEAR_UNLOCK_METERS,
+  trackGearSpawnRatio: TRACK_GEAR_SPAWN_RATIO,
+  trackSlotInterval: TRACK_SLOT_INTERVAL,
+  trackSpawnChance: TRACK_SPAWN_CHANCE,
+  trackSpawnChanceMax: TRACK_SPAWN_CHANCE_MAX,
+  gearSlotInterval: GEAR_SLOT_INTERVAL,
+  gearSpawnChance: GEAR_SPAWN_CHANCE,
+  gearSpawnChanceMax: GEAR_SPAWN_CHANCE_MAX,
+  hazardDensityStartMeters: HAZARD_DENSITY_START_METERS,
+  hazardDensityFullMeters: HAZARD_DENSITY_FULL_METERS,
+};
 const RED_ANCHOR_BLINK_DELAY = 0.5;
 const RED_ANCHOR_VANISH_DELAY = 3;
 const RED_ANCHOR_RESPAWN_DELAY = 2;
+const RED_ANCHOR_CHANCE = 1 / 3;
 const RED_ANCHOR_BLINK_PERIOD_START = 0.5;
 const RED_ANCHOR_BLINK_PERIOD_END = 0.2;
 const RED_ANCHOR_BLINK_ACCEL_START = 0.36;
@@ -106,16 +139,16 @@ const defaultCfg = {
   restitution: 0.62,
   wallFriction: 0.985,
   ballRadius: 24,
-  maxStretch: 107,
+  maxStretch: 115,
   tetherMaxLength: 74,
-  restLength: 50,
+  restLength: 55,
   tetherRestLength: 10,
   hookRadialDamping: 0.55,
   hookSnapStrength: 0,
   hookTangentialBoost: 1.18,
-  launchPower: 17.1,
+  launchPower: 14,
   launchCurveExp: 1.2,
-  maxLaunchSpeed: 1780,
+  maxLaunchSpeed: 1960,
   hookRadius: 20,
   springK: 42,
   springDamping: 1.6,
@@ -134,10 +167,10 @@ const defaultCfg = {
   anchorSpacingMin: 120,
   anchorSpacingMax: 185,
   anchorSidePadding: 70,
-  aimJellyCurve: 0.52,
-  aimJellyMaxDeform: 0.92,
+  aimJellyCurve: 0.29,
+  aimJellyMaxDeform: 1,
   aimJellyFullStart: 0.72,
-  aimJellyNearFullBoost: 0.22,
+  aimJellyNearFullBoost: 0.6,
   aimJellyHoldWobble: 0.26,
   tetherJellyDeformBoost: 1,
 };
@@ -196,16 +229,47 @@ const deathFxParamDefs = [
 ];
 const deathFxIntegerKeys = new Set(["bigBurstCount", "smallBurstCount", "sideSplatCount"]);
 
+const hazardParamDefs = [
+  { key: "trackUnlockMeters", label: "轨道解锁米数", min: 0, max: 220, step: 1 },
+  { key: "gearUnlockMeters", label: "齿轮解锁米数", min: 0, max: 260, step: 1 },
+  { key: "trackGearUnlockMeters", label: "轨道齿轮解锁", min: 0, max: 320, step: 1 },
+  { key: "trackGearSpawnRatio", label: "轨道齿轮占比", min: 0, max: 1, step: 0.01 },
+  { key: "trackSlotInterval", label: "轨道槽位间隔", min: 1, max: 10, step: 1 },
+  { key: "trackSpawnChance", label: "轨道基础概率", min: 0.05, max: 1, step: 0.01 },
+  { key: "trackSpawnChanceMax", label: "轨道最高概率", min: 0.05, max: 1, step: 0.01 },
+  { key: "gearSlotInterval", label: "齿轮槽位间隔", min: 1, max: 10, step: 1 },
+  { key: "gearSpawnChance", label: "齿轮基础概率", min: 0.05, max: 1, step: 0.01 },
+  { key: "gearSpawnChanceMax", label: "齿轮最高概率", min: 0.05, max: 1, step: 0.01 },
+  { key: "hazardDensityStartMeters", label: "增密起始米数", min: 0, max: 320, step: 1 },
+  { key: "hazardDensityFullMeters", label: "增密满值米数", min: 10, max: 500, step: 1 },
+];
+const hazardIntegerKeys = new Set([
+  "trackUnlockMeters",
+  "gearUnlockMeters",
+  "trackGearUnlockMeters",
+  "trackSlotInterval",
+  "gearSlotInterval",
+  "hazardDensityStartMeters",
+  "hazardDensityFullMeters",
+]);
+
+applyCfgDefaultOverrideFromStorage();
+applyHazardDefaultOverrideFromStorage();
+
 const cfg = loadCfgFromStorage();
 const ballVisualCfg = { ...window.BallVisual.defaultBallVisualCfg };
+const jellyLayerVisibility = { ...(window.BallVisual.defaultLayerVisibility || {}) };
 const deathFxCfg = { ...window.DeathFx.defaultDeathFxCfg };
+const hazardCfg = { ...defaultHazardCfg };
 const uiRefs = {};
 const deathFxUiRefs = {};
 const jellyUiRefs = {};
+const hazardUiRefs = {};
 let showAdvancedParams = false;
 let debugPanelVisible = false;
 let deathFxPanelVisible = false;
 let jellyPanelVisible = false;
+let hazardPanelVisible = false;
 let audioCtx = null;
 let redAlarmMasterGain = null;
 let wallHitMasterGain = null;
@@ -219,6 +283,8 @@ let deathPopAudioLoadStarted = false;
 let deathPopLastPlaySec = -999;
 
 normalizeDeathFxCfg();
+loadHazardCfgFromStorage();
+normalizeHazardCfg();
 
 function createEmptyDeathFx() {
   return {
@@ -256,6 +322,7 @@ const world = {
   cameraY: 0,
   cameraX: 0,
   cameraDownMaxY: 0,
+  launchDeathBottomY: 0,
   startY: 0,
   minY: 0,
   runMeters: 0,
@@ -406,6 +473,40 @@ function loadCfgFromStorage() {
   return next;
 }
 
+function applyCfgDefaultOverrideFromStorage() {
+  try {
+    const raw = localStorage.getItem(CFG_DEFAULT_OVERRIDE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    for (const def of paramDefs) {
+      const val = Number(parsed[def.key]);
+      if (!Number.isFinite(val)) continue;
+      defaultCfg[def.key] = clamp(val, def.min, def.max);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function applyHazardDefaultOverrideFromStorage() {
+  try {
+    const raw = localStorage.getItem(HAZARD_DEFAULT_OVERRIDE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    for (const def of hazardParamDefs) {
+      const val = Number(parsed[def.key]);
+      if (!Number.isFinite(val)) continue;
+      let next = clamp(val, def.min, def.max);
+      if (hazardIntegerKeys.has(def.key)) next = Math.round(next);
+      defaultHazardCfg[def.key] = next;
+    }
+  } catch {
+    // ignore
+  }
+}
+
 function saveCfgToStorage() {
   const payload = {};
   for (const def of paramDefs) payload[def.key] = cfg[def.key];
@@ -430,6 +531,122 @@ function saveJellyCfgToStorage() {
   const payload = {};
   for (const def of jellyParamDefs) payload[def.key] = cfg[def.key];
   localStorage.setItem(JELLY_CFG_STORAGE_KEY, JSON.stringify(payload));
+}
+
+function applyJellyLayerVisibilityFromStorage() {
+  try {
+    const defaults = window.BallVisual.defaultLayerVisibility || {};
+    for (const key of Object.keys(defaults)) jellyLayerVisibility[key] = defaults[key];
+
+    const raw = localStorage.getItem(JELLY_LAYER_VISIBILITY_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+
+    for (const key of Object.keys(defaults)) {
+      if (typeof parsed[key] === "boolean") jellyLayerVisibility[key] = parsed[key];
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function normalizeHazardCfg() {
+  for (const def of hazardParamDefs) {
+    let v = Number(hazardCfg[def.key]);
+    if (!Number.isFinite(v)) v = defaultHazardCfg[def.key];
+    v = clamp(v, def.min, def.max);
+    if (hazardIntegerKeys.has(def.key)) v = Math.round(v);
+    hazardCfg[def.key] = v;
+  }
+  if (hazardCfg.trackSpawnChance > hazardCfg.trackSpawnChanceMax) {
+    [hazardCfg.trackSpawnChance, hazardCfg.trackSpawnChanceMax] = [hazardCfg.trackSpawnChanceMax, hazardCfg.trackSpawnChance];
+  }
+  if (hazardCfg.gearSpawnChance > hazardCfg.gearSpawnChanceMax) {
+    [hazardCfg.gearSpawnChance, hazardCfg.gearSpawnChanceMax] = [hazardCfg.gearSpawnChanceMax, hazardCfg.gearSpawnChance];
+  }
+  if (hazardCfg.hazardDensityStartMeters >= hazardCfg.hazardDensityFullMeters) {
+    hazardCfg.hazardDensityFullMeters = hazardCfg.hazardDensityStartMeters + 1;
+  }
+}
+
+function loadHazardCfgFromStorage() {
+  try {
+    const raw = localStorage.getItem(HAZARD_CFG_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    for (const def of hazardParamDefs) {
+      const val = Number(parsed[def.key]);
+      if (Number.isFinite(val)) hazardCfg[def.key] = val;
+    }
+    normalizeHazardCfg();
+  } catch {
+    // ignore
+  }
+}
+
+function saveHazardCfgToStorage() {
+  const payload = {};
+  for (const def of hazardParamDefs) payload[def.key] = hazardCfg[def.key];
+  localStorage.setItem(HAZARD_CFG_STORAGE_KEY, JSON.stringify(payload));
+}
+
+async function saveCodeDefaultsToFile(section, payload) {
+  async function postTo(endpoint) {
+    const resp = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ section, values: payload }),
+    });
+    let data = null;
+    try {
+      data = await resp.json();
+    } catch {
+      // ignore json parse errors
+    }
+    if (!resp.ok || !data || !data.ok) {
+      return {
+        ok: false,
+        message: (data && data.error) || `HTTP ${resp.status}`,
+        status: resp.status,
+      };
+    }
+    return { ok: true, message: data.message || "ok", status: resp.status };
+  }
+
+  try {
+    const primary = await postTo(CODE_DEFAULT_SAVE_ENDPOINT);
+    if (primary.ok) return primary;
+    // 当前静态服务器没有该接口时，尝试本地 dev_server.py 兜底
+    if (primary.status === 404 || primary.status === 405) {
+      try {
+        const fallback = await postTo(CODE_DEFAULT_SAVE_ENDPOINT_FALLBACK);
+        if (fallback.ok) return fallback;
+        return {
+          ok: false,
+          message: `${primary.message}；本地开发服务兜底也失败：${fallback.message}`,
+        };
+      } catch {
+        return {
+          ok: false,
+          message: "当前页面服务不支持写入接口，请启动 dev_server.py（8130）后重试",
+        };
+      }
+    }
+    return { ok: false, message: primary.message };
+  } catch {
+    try {
+      const fallback = await postTo(CODE_DEFAULT_SAVE_ENDPOINT_FALLBACK);
+      if (fallback.ok) return fallback;
+      return { ok: false, message: fallback.message };
+    } catch {
+      // ignore
+    }
+    return {
+      ok: false,
+      message: "未连接到可写入代码的开发服务器（请用 dev_server.py 启动）",
+    };
+  }
 }
 
 function loadBestMeters() {
@@ -465,6 +682,11 @@ function setJellyStatus(text) {
   jellyCfgStatus.textContent = text;
 }
 
+function setHazardStatus(text) {
+  if (!hazardCfgStatus) return;
+  hazardCfgStatus.textContent = text;
+}
+
 function syncDebugPanelVisibility() {
   if (!debugPanel || !debugToggleBtn) return;
   debugPanel.classList.toggle("is-hidden", !debugPanelVisible);
@@ -481,6 +703,12 @@ function syncJellyPanelVisibility() {
   if (!jellyDebugPanel || !jellyDebugToggleBtn) return;
   jellyDebugPanel.classList.toggle("is-hidden", !jellyPanelVisible);
   jellyDebugToggleBtn.textContent = jellyPanelVisible ? "隐藏果冻形变调试" : "显示果冻形变调试";
+}
+
+function syncHazardPanelVisibility() {
+  if (!hazardDebugPanel || !hazardDebugToggleBtn) return;
+  hazardDebugPanel.classList.toggle("is-hidden", !hazardPanelVisible);
+  hazardDebugToggleBtn.textContent = hazardPanelVisible ? "隐藏障碍生成调试" : "显示障碍生成调试";
 }
 
 function buildDebugPanel() {
@@ -613,6 +841,49 @@ function buildJellyDebugPanel() {
   }
 }
 
+function buildHazardDebugPanel() {
+  if (!hazardDebugPanelBody) return;
+  hazardDebugPanelBody.innerHTML = "";
+  for (const key of Object.keys(hazardUiRefs)) {
+    delete hazardUiRefs[key];
+  }
+
+  for (const def of hazardParamDefs) {
+    const row = document.createElement("label");
+    row.className = "debug-row";
+
+    const title = document.createElement("div");
+    title.className = "debug-row__title";
+    const name = document.createElement("span");
+    const value = document.createElement("span");
+    name.textContent = def.label;
+    value.textContent = formatVal(def, hazardCfg[def.key]);
+    title.appendChild(name);
+    title.appendChild(value);
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(def.min);
+    input.max = String(def.max);
+    input.step = String(def.step);
+    input.value = String(hazardCfg[def.key]);
+    input.addEventListener("input", () => {
+      let v = Number(input.value);
+      if (!Number.isFinite(v)) return;
+      if (hazardIntegerKeys.has(def.key)) v = Math.round(v);
+      hazardCfg[def.key] = v;
+      normalizeHazardCfg();
+      syncHazardPanelFromCfg();
+      setHazardStatus("障碍生成参数实时生效，点击保存写入本地。");
+    });
+
+    row.appendChild(title);
+    row.appendChild(input);
+    hazardDebugPanelBody.appendChild(row);
+    hazardUiRefs[def.key] = { def, input, value };
+  }
+}
+
 function syncPanelFromCfg() {
   for (const def of paramDefs) {
     const ref = uiRefs[def.key];
@@ -637,6 +908,15 @@ function syncJellyPanelFromCfg() {
     if (!ref) continue;
     ref.input.value = String(cfg[def.key]);
     ref.value.textContent = formatVal(def, cfg[def.key]);
+  }
+}
+
+function syncHazardPanelFromCfg() {
+  for (const def of hazardParamDefs) {
+    const ref = hazardUiRefs[def.key];
+    if (!ref) continue;
+    ref.input.value = String(hazardCfg[def.key]);
+    ref.value.textContent = formatVal(def, hazardCfg[def.key]);
   }
 }
 
@@ -877,7 +1157,7 @@ function createAnchor(x, y, radius = 8, options = {}) {
   const useFixedId = Number.isInteger(options.id);
   const id = useFixedId ? options.id : world.anchorIdSeed++;
   if (id >= world.anchorIdSeed) world.anchorIdSeed = id + 1;
-  const isRed = typeof options.isRed === "boolean" ? options.isRed : Math.random() < 0.5;
+  const isRed = typeof options.isRed === "boolean" ? options.isRed : Math.random() < RED_ANCHOR_CHANCE;
   return {
     id,
     x,
@@ -982,37 +1262,37 @@ function addAnchorAbove(yOverride = null, forcedSide = 0) {
 
 function canSpawnTrackFromGenerator() {
   if (!TRACK_ENABLED || !world.movingTrack) return false;
-  if (world.runMeters < HAZARD_UNLOCK_METERS) return false;
+  if (world.runMeters < hazardCfg.trackUnlockMeters) return false;
   if (world.anchorSpawnCount < TRACK_UNLOCK_ANCHOR_COUNT) return false;
   const t = world.movingTrack;
   if (!t.activated) return true;
-  return t.y > world.cameraY + world.h * 1.2 && world.activeAnchor !== t.pinAnchor;
+  return t.y > world.cameraY + world.h * 1.2 && (t.mode !== "pin" || world.activeAnchor !== t.pinAnchor);
 }
 
 function shouldSpawnTrackOnNextSlot() {
   if (!canSpawnTrackFromGenerator()) return false;
   if (!world.movingTrack.activated) return true;
-  const densityT = clamp01((world.runMeters - HAZARD_DENSITY_START_METERS) / Math.max(1, HAZARD_DENSITY_FULL_METERS - HAZARD_DENSITY_START_METERS));
-  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(TRACK_SLOT_INTERVAL, TRACK_SLOT_INTERVAL_MIN, densityT)));
-  const dynamicChance = lerp(TRACK_SPAWN_CHANCE, TRACK_SPAWN_CHANCE_MAX, densityT);
+  const densityT = clamp01((world.runMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.trackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(hazardCfg.trackSpawnChance, hazardCfg.trackSpawnChanceMax, densityT);
   if (world.trackSlotsSinceSpawn < dynamicInterval) return false;
   return Math.random() < dynamicChance;
 }
 
 function canSpawnGearFromGenerator() {
   if (!GEAR_ENABLED) return false;
-  if (world.runMeters < HAZARD_UNLOCK_METERS) return false;
+  if (world.runMeters < hazardCfg.gearUnlockMeters) return false;
   if (world.anchorSpawnCount < GEAR_UNLOCK_ANCHOR_COUNT) return false;
-  if (world.gearSlotsSinceSpawn < GEAR_SLOT_INTERVAL) return false;
+  if (world.gearSlotsSinceSpawn < hazardCfg.gearSlotInterval) return false;
   return true;
 }
 
 function shouldSpawnGearOnNextSlot() {
   if (!canSpawnGearFromGenerator()) return false;
   if (!world.gears.length) return true;
-  const densityT = clamp01((world.runMeters - HAZARD_DENSITY_START_METERS) / Math.max(1, HAZARD_DENSITY_FULL_METERS - HAZARD_DENSITY_START_METERS));
-  const dynamicInterval = Math.max(GEAR_SLOT_INTERVAL_MIN, Math.round(lerp(GEAR_SLOT_INTERVAL, GEAR_SLOT_INTERVAL_MIN, densityT)));
-  const dynamicChance = lerp(GEAR_SPAWN_CHANCE, GEAR_SPAWN_CHANCE_MAX, densityT);
+  const densityT = clamp01((world.runMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const dynamicInterval = Math.max(GEAR_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.gearSlotInterval, GEAR_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(hazardCfg.gearSpawnChance, hazardCfg.gearSpawnChanceMax, densityT);
   if (world.gearSlotsSinceSpawn < dynamicInterval) return false;
   return Math.random() < dynamicChance;
 }
@@ -1104,24 +1384,40 @@ function createMovingTrack() {
   const yOffset = Math.max(190, Math.min(280, world.h * 0.3));
   const travelHalf = Math.max(40, width * 0.5 - 28);
   const pinX = world.w * 0.5;
-  const pinIsRed = Math.random() < 0.5;
+  const pinRadius = Math.max(10, Math.min(14, height * 0.44));
+  const gearRadius = Math.max(20, Math.min(30, height * 0.95));
   return {
     x: world.w * 0.5,
     y: world.h * 0.75 - yOffset,
     width,
     height,
     travelHalf,
+    mode: "pin", // pin | gear
     pinOffset: 0,
     pinDir: Math.random() < 0.5 ? -1 : 1,
     pinSpeed: TRACK_PIN_SPEED,
-    pinRadius: Math.max(10, Math.min(14, height * 0.44)),
+    pinRadius,
     hiddenUntilSec: 0,
     wasPinVisible: true,
     activated: false,
-    pinAnchor: createAnchor(pinX, world.h * 0.75 - yOffset, Math.max(10, Math.min(14, height * 0.44)), {
-      isRed: pinIsRed,
+    pinAnchor: createAnchor(pinX, world.h * 0.75 - yOffset, pinRadius, {
+      isRed: Math.random() < RED_ANCHOR_CHANCE,
     }),
+    trackGear: {
+      x: pinX,
+      y: world.h * 0.75 - yOffset,
+      radius: gearRadius,
+      innerRadius: gearRadius * 0.42,
+      toothDepth: Math.max(6, gearRadius * 0.24),
+      angle: rand(0, Math.PI * 2),
+      spinDir: Math.random() < 0.5 ? -1 : 1,
+    },
   };
+}
+
+function chooseMovingTrackMode() {
+  if (world.runMeters < hazardCfg.trackGearUnlockMeters) return "pin";
+  return Math.random() < hazardCfg.trackGearSpawnRatio ? "gear" : "pin";
 }
 
 function getTrackRespawnXByCursor(cursor, width) {
@@ -1130,27 +1426,43 @@ function getTrackRespawnXByCursor(cursor, width) {
   return clamp(world.w * ratio, sidePad, world.w - sidePad);
 }
 
-function spawnMovingTrackAtY(track, y) {
+function spawnMovingTrackAtY(track, y, mode = "pin") {
   if (!track) return;
   track.activated = true;
+  track.mode = mode;
   track.x = getTrackRespawnXByCursor(world.trackLaneCursor, track.width);
   world.trackLaneCursor += 1;
   track.y = y;
   track.pinOffset = 0;
   track.pinDir = Math.random() < 0.5 ? -1 : 1;
+
+  const pinX = track.x;
   if (track.pinAnchor) {
-    track.pinAnchor.x = track.x;
+    track.pinAnchor.x = pinX;
     track.pinAnchor.y = track.y;
     track.pinAnchor.radius = track.pinRadius;
-    track.pinAnchor.isRed = Math.random() < 0.5;
     track.pinAnchor.fuseStarted = false;
     track.pinAnchor.fuseStartSec = 0;
     track.pinAnchor.spawnAnimStartSec = -999;
   }
-  track.hiddenUntilSec = world.timeSec;
-  track.wasPinVisible = true;
-  if (track.pinAnchor && track.pinAnchor.isRed) {
-    triggerRedAnchorSpawnAnim(track.pinAnchor);
+
+  if (mode === "pin") {
+    if (track.pinAnchor) {
+      track.pinAnchor.isRed = Math.random() < RED_ANCHOR_CHANCE;
+      if (track.pinAnchor.isRed) triggerRedAnchorSpawnAnim(track.pinAnchor);
+    }
+    track.hiddenUntilSec = world.timeSec;
+    track.wasPinVisible = true;
+  } else {
+    track.hiddenUntilSec = Number.POSITIVE_INFINITY;
+    track.wasPinVisible = false;
+  }
+
+  if (track.trackGear) {
+    track.trackGear.x = pinX;
+    track.trackGear.y = track.y;
+    track.trackGear.angle = rand(0, Math.PI * 2);
+    track.trackGear.spinDir = Math.random() < 0.5 ? -1 : 1;
   }
 }
 
@@ -1172,7 +1484,7 @@ function addGeneratedSlotAbove() {
   const spawnGear = !spawnTrack && shouldSpawnGearOnNextSlot();
 
   if (spawnTrack) {
-    spawnMovingTrackAtY(world.movingTrack, y);
+    spawnMovingTrackAtY(world.movingTrack, y, chooseMovingTrackMode());
     world.generatedTopY = y;
     world.trackSlotsSinceSpawn = 0;
     world.gearSlotsSinceSpawn += 1;
@@ -1206,6 +1518,7 @@ function resetRun() {
   world.cameraX = 0;
   world.cameraY = world.ball.y - world.h * cfg.cameraTargetRatio;
   world.cameraDownMaxY = world.cameraY + world.h * cfg.cameraDownLimitRatio;
+  world.launchDeathBottomY = world.cameraY + world.h;
   world.ball.vx = 0;
   world.ball.vy = 0;
   world.lookDir.x = 0;
@@ -1474,7 +1787,9 @@ function launchBall() {
   world.activeAnchor = null;
   world.state = "launched";
   world.breakFlash = cfg.breakFlashDuration;
-  world.hookCooldown = cfg.rehookCooldown;
+  // 向下发射时尽快允许挂到下方新钉子，避免先触底判死
+  const downwardLaunchCooldown = 0.06;
+  world.hookCooldown = b.vy > 0 ? Math.min(cfg.rehookCooldown, downwardLaunchCooldown) : cfg.rehookCooldown;
   world.launchGraceTimer = cfg.launchGraceSec;
   world.hasHookedSinceLaunch = false;
 }
@@ -1523,6 +1838,7 @@ function hookToAnchor(anchor) {
   world.hookCooldown = cfg.rehookCooldown;
   world.hasHookedSinceLaunch = true;
   world.cameraDownMaxY = world.cameraY + world.h * cfg.cameraDownLimitRatio;
+  world.launchDeathBottomY = world.cameraY + world.h;
   startRedAnchorFuse(anchor);
 }
 
@@ -1638,6 +1954,8 @@ function checkAnchorHook() {
   const b = world.ball;
   for (const a of world.anchors) {
     if (a === world.activeAnchor) continue;
+    // 发射后的保护帧内，不允许立刻吸回刚松开的旧钉子
+    if (a === world.lastReleasedAnchor && world.launchGraceTimer > 0) continue;
     const d = Math.hypot(b.x - a.x, b.y - a.y);
     if (d <= cfg.ballRadius + cfg.hookRadius + a.radius) {
       hookToAnchor(a);
@@ -1659,7 +1977,7 @@ function updateMovingTrack(dt) {
   if (!t.activated) return;
   const wasPinVisible = world.timeSec >= t.hiddenUntilSec;
 
-  if (t.pinAnchor && t.pinAnchor.isRed && t.pinAnchor.fuseStarted) {
+  if (t.mode === "pin" && t.pinAnchor && t.pinAnchor.isRed && t.pinAnchor.fuseStarted) {
     const elapsed = world.timeSec - t.pinAnchor.fuseStartSec;
     if (elapsed >= RED_ANCHOR_VANISH_DELAY) {
       if (world.activeAnchor === t.pinAnchor) {
@@ -1686,12 +2004,21 @@ function updateMovingTrack(dt) {
   }
 
   const pinX = t.x + t.pinOffset;
-  t.pinAnchor.x = pinX;
-  t.pinAnchor.y = t.y;
-  t.pinAnchor.radius = t.pinRadius;
+  if (t.mode === "pin" && t.pinAnchor) {
+    t.pinAnchor.x = pinX;
+    t.pinAnchor.y = t.y;
+    t.pinAnchor.radius = t.pinRadius;
+  }
+  if (t.trackGear) {
+    t.trackGear.x = pinX;
+    t.trackGear.y = t.y;
+    if (t.mode === "gear") {
+      t.trackGear.angle = (t.trackGear.angle + GEAR_ROT_SPEED * t.trackGear.spinDir * dt) % (Math.PI * 2);
+    }
+  }
 
   const pinVisibleNow = world.timeSec >= t.hiddenUntilSec;
-  if (!wasPinVisible && pinVisibleNow && t.pinAnchor && t.pinAnchor.isRed) {
+  if (t.mode === "pin" && !wasPinVisible && pinVisibleNow && t.pinAnchor && t.pinAnchor.isRed) {
     triggerRedAnchorSpawnAnim(t.pinAnchor);
   }
   t.wasPinVisible = pinVisibleNow;
@@ -1699,19 +2026,31 @@ function updateMovingTrack(dt) {
 
 function checkMovingTrackHit() {
   if (!TRACK_ENABLED || !world.movingTrack) return;
-  if (world.hookCooldown > 0) return;
-  if (world.hasHookedSinceLaunch) return;
-  if (world.state === "gameover" || world.state === "dying") return;
   if (world.state !== "launched" && world.state !== "tethered") return;
+  if (world.state === "gameover" || world.state === "dying") return;
   const t = world.movingTrack;
   if (!t.activated) return;
-  if (world.timeSec < t.hiddenUntilSec) return;
-  if (!t.pinAnchor) return;
-  if (world.activeAnchor === t.pinAnchor) return;
-  const hitRadius = cfg.ballRadius + cfg.hookRadius + t.pinAnchor.radius;
-  const d = Math.hypot(world.ball.x - t.pinAnchor.x, world.ball.y - t.pinAnchor.y);
-  if (d <= hitRadius) {
-    hookToAnchor(t.pinAnchor);
+  if (t.mode === "pin") {
+    if (world.hookCooldown > 0) return;
+    if (world.hasHookedSinceLaunch) return;
+    if (world.timeSec < t.hiddenUntilSec) return;
+    if (!t.pinAnchor) return;
+    if (world.activeAnchor === t.pinAnchor) return;
+    const hitRadius = cfg.ballRadius + cfg.hookRadius + t.pinAnchor.radius;
+    const d = Math.hypot(world.ball.x - t.pinAnchor.x, world.ball.y - t.pinAnchor.y);
+    if (d <= hitRadius) {
+      hookToAnchor(t.pinAnchor);
+    }
+    return;
+  }
+
+  if (t.mode === "gear" && t.trackGear) {
+    const g = t.trackGear;
+    const hitRadius = g.radius + cfg.ballRadius - g.toothDepth * 0.35;
+    const d = Math.hypot(world.ball.x - g.x, world.ball.y - g.y);
+    if (d <= hitRadius) {
+      startDeathFx(toScreenX(world.ball.x), toScreenY(world.ball.y));
+    }
   }
 }
 
@@ -1776,6 +2115,13 @@ function updateCamera(dt) {
     const downDesired = Math.min(desired, world.cameraDownMaxY);
     const alpha = 1 - Math.exp(-cfg.cameraFollowDown * dt);
     world.cameraY += (downDesired - world.cameraY) * alpha;
+  } else if (world.state === "launched") {
+    // 发射后允许镜头下跟，但最多跟到最近一次挂钩时记录的底线
+    const launchBottomY = Number.isFinite(world.launchDeathBottomY) ? world.launchDeathBottomY : world.cameraY + world.h;
+    const launchDownMaxY = launchBottomY - world.h;
+    const downDesired = Math.max(world.cameraY, Math.min(desired, launchDownMaxY));
+    const alpha = 1 - Math.exp(-cfg.cameraFollowDown * dt);
+    world.cameraY += (downDesired - world.cameraY) * alpha;
   }
 
   const xAlpha = 1 - Math.exp(-cfg.cameraFollowX * dt);
@@ -1799,7 +2145,8 @@ function getJuicePalette() {
   if (ballVisualCfg) {
     palette.push(ballVisualCfg.colorA, ballVisualCfg.colorB, ballVisualCfg.colorC, ballVisualCfg.colorD);
   }
-  palette.push("#f4ff9a", "#d8f55d", "#acd726", "#7aa90f");
+  // 粉桃系兜底，避免视觉配置缺失时退回旧黄绿配色
+  palette.push("#ffe8f2", "#ffb8d2", "#ff8ea9", "#ff6f61", "#ff9dc2");
   return [...new Set(palette.filter((c) => typeof c === "string" && c.trim()))];
 }
 
@@ -2060,8 +2407,11 @@ function checkGameOver() {
   if (world.state === "gameover" || world.state === "dying") return;
   if (world.state !== "launched") return;
   if (world.launchGraceTimer > 0) return;
-  const screenBottomY = world.cameraY + world.h;
-  if (world.ball.y + cfg.ballRadius >= screenBottomY + cfg.deathBottomMargin) {
+  const cameraBottomY = world.cameraY + world.h;
+  const launchBottomY = Number.isFinite(world.launchDeathBottomY) ? world.launchDeathBottomY : cameraBottomY;
+  const deathBottomY = Math.max(cameraBottomY, launchBottomY);
+  // 用球心判定，避免视觉上“还没到底就死亡”
+  if (world.ball.y >= deathBottomY + cfg.deathBottomMargin) {
     startDeathFx(toScreenX(world.ball.x), toScreenY(world.ball.y));
   }
 }
@@ -2146,6 +2496,11 @@ function update(dt) {
     return;
   }
 
+  if (world.state !== "gameover") {
+    updateCamera(dt);
+    ensureAnchorsCoverage();
+  }
+
   checkGameOver();
   if (world.state === "dying") {
     updateDeathFx(dt);
@@ -2153,10 +2508,6 @@ function update(dt) {
   }
   if (world.state === "launched" || world.state === "tethered") {
     updateMeters();
-  }
-  if (world.state !== "gameover") {
-    updateCamera(dt);
-    ensureAnchorsCoverage();
   }
 }
 
@@ -2177,29 +2528,12 @@ function drawBackground() {
   const skyMid = mixRgb([186, 230, 253], [125, 211, 252], altitudeT * 0.5);
   const skyBottom = mixRgb([224, 242, 254], [186, 230, 253], altitudeT * 0.42);
 
-  const skyOffsetX = -world.cameraX * 0.14;
-  const sunDrift = Math.sin(world.timeSec * 0.055 + (bg?.seed || 0)) * world.w * 0.04;
   const g = ctx.createLinearGradient(0, 0, 0, world.h);
   g.addColorStop(0, skyTop);
   g.addColorStop(0.46, skyMid);
   g.addColorStop(1, skyBottom);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, world.w, world.h);
-
-  const sunX = world.w * 0.78 + skyOffsetX + sunDrift;
-  const sunGlow = ctx.createRadialGradient(sunX, world.h * 0.16, 12, sunX, world.h * 0.16, world.w * 0.22);
-  sunGlow.addColorStop(0, "rgba(255, 245, 180, 0.95)");
-  sunGlow.addColorStop(0.45, "rgba(255, 236, 153, 0.45)");
-  sunGlow.addColorStop(1, "rgba(255, 236, 153, 0)");
-  ctx.fillStyle = sunGlow;
-  ctx.beginPath();
-  ctx.arc(sunX, world.h * 0.16, world.w * 0.22, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = "rgba(255, 244, 186, 0.95)";
-  ctx.beginPath();
-  ctx.arc(sunX, world.h * 0.16, Math.min(world.w, world.h) * 0.06, 0, Math.PI * 2);
-  ctx.fill();
 
   if (bg && bg.cloudBands.size > 0) {
     const sortedBands = Array.from(bg.cloudBands.keys()).sort((a, b) => a - b);
@@ -2284,7 +2618,6 @@ function drawMovingTrack() {
   const offPad = Math.max(80, t.width * 0.6);
   if (sx < -offPad || sx > world.w + offPad || sy < -120 || sy > world.h + 120) return;
 
-  const pinVisible = world.timeSec >= t.hiddenUntilSec;
   const pinSX = sx + t.pinOffset;
   const slotH = t.height * 0.56;
 
@@ -2308,78 +2641,129 @@ function drawMovingTrack() {
   drawHorizontalCapsulePath(sx, sy, t.width - 16, slotH - 6);
   ctx.fill();
 
-  if (pinVisible && t.pinAnchor) {
+  if (t.mode === "pin" && t.pinAnchor) {
+    const pinVisible = world.timeSec >= t.hiddenUntilSec;
+    if (!pinVisible) {
+      ctx.restore();
+      return;
+    }
     const pinFuse = getAnchorFuseState(t.pinAnchor);
     const pinSpawnAnim = getRedAnchorSpawnAnimState(t.pinAnchor);
     ctx.save();
     ctx.translate(pinSX, sy);
     ctx.globalAlpha = pinFuse.alpha * pinSpawnAnim.alpha;
     const pinStyle = getAnchorVisualStyle(t.pinAnchor, pinFuse.flash);
-  const pinAnchorRadius = Math.max(6, t.pinRadius - 4);
-  const baseOuterR = pinAnchorRadius + 10;
-  const outerR = baseOuterR * pinSpawnAnim.scale;
-  const ringR = Math.max(2, outerR - 4);
-  const coreR = Math.max(1, outerR - 8.5);
+    const pinAnchorRadius = Math.max(6, t.pinRadius - 4);
+    const baseOuterR = pinAnchorRadius + 10;
+    const outerR = baseOuterR * pinSpawnAnim.scale;
+    const ringR = Math.max(2, outerR - 4);
+    const coreR = Math.max(1, outerR - 8.5);
 
-  if (pinSpawnAnim.ringAlpha > 0.001) {
-    ctx.strokeStyle = `rgba(255, 126, 126, ${pinSpawnAnim.ringAlpha})`;
-    ctx.lineWidth = 2.2;
+    if (pinSpawnAnim.ringAlpha > 0.001) {
+      ctx.strokeStyle = `rgba(255, 126, 126, ${pinSpawnAnim.ringAlpha})`;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(0, 0, baseOuterR * pinSpawnAnim.ringRadiusMul, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+    const rim = ctx.createLinearGradient(-outerR, -outerR, outerR, outerR);
+    rim.addColorStop(0, pinStyle.rimLight);
+    rim.addColorStop(1, pinStyle.rimDark);
+    ctx.fillStyle = rim;
     ctx.beginPath();
-    ctx.arc(0, 0, baseOuterR * pinSpawnAnim.ringRadiusMul, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  ctx.shadowColor = "rgba(0, 0, 0, 0.25)";
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 4;
-  const rim = ctx.createLinearGradient(-outerR, -outerR, outerR, outerR);
-  rim.addColorStop(0, pinStyle.rimLight);
-  rim.addColorStop(1, pinStyle.rimDark);
-  ctx.fillStyle = rim;
-  ctx.beginPath();
-  ctx.arc(0, 0, outerR, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.shadowColor = "transparent";
-  ctx.fillStyle = "rgba(86, 64, 41, 0.18)";
-  ctx.beginPath();
-  ctx.arc(0, 1, ringR, 0, Math.PI * 2);
-  ctx.fill();
-
-  const plate = ctx.createRadialGradient(-4, -5, 3, 0, 0, ringR);
-  plate.addColorStop(0, "#fffef6");
-  plate.addColorStop(1, "#e9d8c2");
-  ctx.fillStyle = plate;
-  ctx.beginPath();
-  ctx.arc(0, 0, ringR, 0, Math.PI * 2);
-  ctx.fill();
-
-  const core = ctx.createRadialGradient(-3, -3, 2, 0, 0, coreR);
-  core.addColorStop(0, "#ffffff");
-  core.addColorStop(0.16, pinStyle.core);
-  core.addColorStop(1, pinStyle.coreDark);
-  ctx.fillStyle = core;
-  ctx.beginPath();
-  ctx.arc(0, 0, coreR, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = pinStyle.highlight;
-  ctx.beginPath();
-  ctx.arc(-coreR * 0.28, -coreR * 0.32, coreR * 0.35, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (t.pinAnchor.isRed && pinFuse.flash > 0.001) {
-    const glow = ctx.createRadialGradient(0, 0, coreR * 0.15, 0, 0, outerR + 4);
-    glow.addColorStop(0, `rgba(255, 255, 255, ${0.92 * pinFuse.flash})`);
-    glow.addColorStop(0.52, `rgba(255, 255, 255, ${0.44 * pinFuse.flash})`);
-    glow.addColorStop(1, "rgba(255, 255, 255, 0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(0, 0, outerR + 4, 0, Math.PI * 2);
+    ctx.arc(0, 0, outerR, 0, Math.PI * 2);
     ctx.fill();
-  }
-  ctx.restore();
+
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = "rgba(86, 64, 41, 0.18)";
+    ctx.beginPath();
+    ctx.arc(0, 1, ringR, 0, Math.PI * 2);
+    ctx.fill();
+
+    const plate = ctx.createRadialGradient(-4, -5, 3, 0, 0, ringR);
+    plate.addColorStop(0, "#fffef6");
+    plate.addColorStop(1, "#e9d8c2");
+    ctx.fillStyle = plate;
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR, 0, Math.PI * 2);
+    ctx.fill();
+
+    const core = ctx.createRadialGradient(-3, -3, 2, 0, 0, coreR);
+    core.addColorStop(0, "#ffffff");
+    core.addColorStop(0.16, pinStyle.core);
+    core.addColorStop(1, pinStyle.coreDark);
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(0, 0, coreR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = pinStyle.highlight;
+    ctx.beginPath();
+    ctx.arc(-coreR * 0.28, -coreR * 0.32, coreR * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (t.pinAnchor.isRed && pinFuse.flash > 0.001) {
+      const glow = ctx.createRadialGradient(0, 0, coreR * 0.15, 0, 0, outerR + 4);
+      glow.addColorStop(0, `rgba(255, 255, 255, ${0.92 * pinFuse.flash})`);
+      glow.addColorStop(0.52, `rgba(255, 255, 255, ${0.44 * pinFuse.flash})`);
+      glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, outerR + 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  } else if (t.mode === "gear" && t.trackGear) {
+    const g = t.trackGear;
+    const outerR = g.radius;
+    const toothR = outerR + g.toothDepth;
+    const midR = outerR * 0.82;
+
+    ctx.save();
+    ctx.translate(pinSX, sy);
+    ctx.rotate(g.angle);
+
+    const metal = ctx.createLinearGradient(-toothR, -toothR, toothR, toothR);
+    metal.addColorStop(0, "#f8fafc");
+    metal.addColorStop(0.45, "#cbd5e1");
+    metal.addColorStop(1, "#64748b");
+    ctx.fillStyle = metal;
+    ctx.beginPath();
+    for (let i = 0; i < GEAR_TEETH * 2; i += 1) {
+      const angle = (i / (GEAR_TEETH * 2)) * Math.PI * 2;
+      const r = i % 2 === 0 ? toothR : outerR;
+      const x = Math.cos(angle) * r;
+      const y = Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    const rim = ctx.createRadialGradient(-midR * 0.2, -midR * 0.2, 2, 0, 0, midR);
+    rim.addColorStop(0, "#e2e8f0");
+    rim.addColorStop(1, "#475569");
+    ctx.fillStyle = rim;
+    ctx.beginPath();
+    ctx.arc(0, 0, midR, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#0f172a";
+    ctx.beginPath();
+    ctx.arc(0, 0, g.innerRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.28)";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(0, 0, midR * 0.72, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   ctx.restore();
@@ -2755,7 +3139,7 @@ function drawDeathFx() {
 }
 
 function drawBall() {
-  if (world.state === "dying") return;
+  if (world.state === "dying" || world.state === "gameover") return;
   const sy = toScreenY(world.ball.y);
   const sx = toScreenX(world.ball.x);
   let angle = getBallRenderAngle();
@@ -2795,6 +3179,7 @@ function drawBall() {
     lookDirY: world.lookDir.y,
     faceMode: world.state === "launched" ? "flight_squint" : "normal",
     cfg: ballVisualCfg,
+    layerVisibility: jellyLayerVisibility,
   });
 }
 
@@ -2854,17 +3239,21 @@ function tick(t) {
 }
 
 loadJellyCfgFromStorage();
+applyJellyLayerVisibilityFromStorage();
 buildDebugPanel();
 buildDeathFxDebugPanel();
 buildJellyDebugPanel();
+buildHazardDebugPanel();
 syncPanelFromCfg();
 syncDeathFxPanelFromCfg();
 syncJellyPanelFromCfg();
+syncHazardPanelFromCfg();
 updateMeterHud();
 updateFpsHud();
 syncDebugPanelVisibility();
 syncDeathFxPanelVisibility();
 syncJellyPanelVisibility();
+syncHazardPanelVisibility();
 
 if (debugToggleBtn) {
   debugToggleBtn.addEventListener("click", () => {
@@ -2872,9 +3261,11 @@ if (debugToggleBtn) {
     debugPanelVisible = nextVisible;
     if (nextVisible) deathFxPanelVisible = false;
     if (nextVisible) jellyPanelVisible = false;
+    if (nextVisible) hazardPanelVisible = false;
     syncDebugPanelVisibility();
     syncDeathFxPanelVisibility();
     syncJellyPanelVisibility();
+    syncHazardPanelVisibility();
   });
 }
 
@@ -2884,9 +3275,11 @@ if (deathFxDebugToggleBtn) {
     deathFxPanelVisible = nextVisible;
     if (nextVisible) debugPanelVisible = false;
     if (nextVisible) jellyPanelVisible = false;
+    if (nextVisible) hazardPanelVisible = false;
     syncDeathFxPanelVisibility();
     syncDebugPanelVisibility();
     syncJellyPanelVisibility();
+    syncHazardPanelVisibility();
   });
 }
 
@@ -2896,9 +3289,25 @@ if (jellyDebugToggleBtn) {
     jellyPanelVisible = nextVisible;
     if (nextVisible) debugPanelVisible = false;
     if (nextVisible) deathFxPanelVisible = false;
+    if (nextVisible) hazardPanelVisible = false;
     syncJellyPanelVisibility();
     syncDebugPanelVisibility();
     syncDeathFxPanelVisibility();
+    syncHazardPanelVisibility();
+  });
+}
+
+if (hazardDebugToggleBtn) {
+  hazardDebugToggleBtn.addEventListener("click", () => {
+    const nextVisible = !hazardPanelVisible;
+    hazardPanelVisible = nextVisible;
+    if (nextVisible) debugPanelVisible = false;
+    if (nextVisible) deathFxPanelVisible = false;
+    if (nextVisible) jellyPanelVisible = false;
+    syncHazardPanelVisibility();
+    syncDebugPanelVisibility();
+    syncDeathFxPanelVisibility();
+    syncJellyPanelVisibility();
   });
 }
 
@@ -2946,6 +3355,36 @@ saveCfgBtn.addEventListener("click", () => {
   setStatus("已保存到本地，下次打开会自动读取。");
 });
 
+if (saveAsDefaultBtn) {
+  saveAsDefaultBtn.addEventListener("click", async () => {
+    const payload = {};
+    for (const def of paramDefs) {
+      payload[def.key] = cfg[def.key];
+      defaultCfg[def.key] = cfg[def.key];
+    }
+    localStorage.setItem(CFG_DEFAULT_OVERRIDE_KEY, JSON.stringify(payload));
+    const result = await saveCodeDefaultsToFile("cfg", payload);
+    if (result.ok) {
+      setStatus("已写入代码默认值 + 本地默认值（全设备将使用这套默认）。");
+    } else {
+      setStatus(`已保存本地默认值；代码默认值写入失败：${result.message}`);
+    }
+  });
+}
+
+if (copyCfgCodeBtn) {
+  copyCfgCodeBtn.addEventListener("click", async () => {
+    const payload = {};
+    for (const def of paramDefs) payload[def.key] = cfg[def.key];
+    const result = await saveCodeDefaultsToFile("cfg", payload);
+    if (result.ok) {
+      setStatus("已保存到代码默认值（全员生效，需提交代码）。");
+    } else {
+      setStatus(`保存到代码默认值失败：${result.message}`);
+    }
+  });
+}
+
 defaultCfgBtn.addEventListener("click", () => {
   Object.assign(cfg, defaultCfg);
   syncPanelFromCfg();
@@ -2972,6 +3411,45 @@ if (jellyDefaultBtn) {
     setJellyStatus("已恢复果冻形变默认参数。");
   });
 }
+
+if (hazardDefaultBtn) {
+  hazardDefaultBtn.addEventListener("click", () => {
+    Object.assign(hazardCfg, defaultHazardCfg);
+    normalizeHazardCfg();
+    syncHazardPanelFromCfg();
+    setHazardStatus("已恢复障碍生成默认参数（如需持久化请点保存）。");
+  });
+}
+
+if (hazardSaveBtn) {
+  hazardSaveBtn.addEventListener("click", () => {
+    saveHazardCfgToStorage();
+    setHazardStatus("已保存障碍生成参数到本地。");
+  });
+}
+
+if (hazardSaveAsDefaultBtn) {
+  hazardSaveAsDefaultBtn.addEventListener("click", async () => {
+    const payload = {};
+    for (const def of hazardParamDefs) {
+      payload[def.key] = hazardCfg[def.key];
+      defaultHazardCfg[def.key] = hazardCfg[def.key];
+    }
+    localStorage.setItem(HAZARD_DEFAULT_OVERRIDE_KEY, JSON.stringify(payload));
+    const result = await saveCodeDefaultsToFile("hazard", payload);
+    if (result.ok) {
+      setHazardStatus("已写入代码默认值 + 本地默认值（全设备将使用这套默认）。");
+    } else {
+      setHazardStatus(`已保存本地默认值；代码默认值写入失败：${result.message}`);
+    }
+  });
+}
+
+window.addEventListener("storage", (e) => {
+  if (e.key === JELLY_LAYER_VISIBILITY_KEY) {
+    applyJellyLayerVisibilityFromStorage();
+  }
+});
 
 window.addEventListener("resize", resize);
 canvas.addEventListener("pointerdown", onPointerDown);

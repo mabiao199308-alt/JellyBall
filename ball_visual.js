@@ -13,6 +13,10 @@ const defaultBallVisualCfg = {
   "shadowScaleX": 0.92,
   "shadowScaleY": 0.56,
   "outlineWidth": 2.4,
+  "edgeGlowOpacity": 0.24,
+  "edgeGlowWidthMul": 2.6,
+  "edgeGlowBlurRatio": 0.16,
+  "edgeGlowColor": "#ff9dc2",
   "glossOpacity": 0.34,
   "glossScaleX": 0.16,
   "glossScaleY": 0.3,
@@ -55,11 +59,11 @@ const defaultBallVisualCfg = {
   "softShellMaxDeform": 0.34,
   "softShellRipple": 0.09,
   "softShellJiggle": 0.11,
-  "colorA": "#f4ff9a",
-  "colorB": "#d8f55d",
-  "colorC": "#acd726",
-  "colorD": "#7aa90f",
-  "outlineColor": "#f8ffbc",
+  "colorA": "#ffe8f2",
+  "colorB": "#ffb8d2",
+  "colorC": "#ff8ea9",
+  "colorD": "#ff6f61",
+  "outlineColor": "#fff3f8",
   "eyeColor": "#ffffff",
   "pupilColor": "#111111"
 };
@@ -155,6 +159,29 @@ function drawJellyBodyPath(ctx, r, squash = 0, wobble = 0, cfg = defaultBallVisu
   drawSoftClosedPath(ctx, points);
 }
 
+const defaultLayerVisibility = {
+  bodyGradient: true,
+  edgeGlow: true,
+  outline: true,
+  gloss: false,
+  band: false,
+  blobs: false,
+  bubbles: false,
+  eyesWhite: true,
+  pupils: true,
+  pupilHighlights: true,
+  squintEyes: true,
+};
+
+function resolveLayerVisibility(raw) {
+  if (!raw || typeof raw !== "object") return { ...defaultLayerVisibility };
+  const next = { ...defaultLayerVisibility };
+  for (const key of Object.keys(defaultLayerVisibility)) {
+    if (typeof raw[key] === "boolean") next[key] = raw[key];
+  }
+  return next;
+}
+
 function drawJellyBall(ctx, options = {}) {
   const cfg = resolveBallVisualCfg(options.cfg);
   const baseRadius = Number.isFinite(options.baseRadius) ? options.baseRadius : 24;
@@ -167,6 +194,7 @@ function drawJellyBall(ctx, options = {}) {
   const lookDirX = Number(options.lookDirX);
   const lookDirY = Number(options.lookDirY);
   const faceMode = typeof options.faceMode === "string" ? options.faceMode : "normal";
+  const layerVisibility = resolveLayerVisibility(options.layerVisibility);
   const deformAmount = Number(options.deformAmount);
   const wobbleOffset = Number(options.wobbleOffset);
   const squash = Number.isFinite(deformAmount)
@@ -179,44 +207,94 @@ function drawJellyBall(ctx, options = {}) {
   ctx.save();
   ctx.translate(x, y);
   const rotationMix = Math.min(1, cfg.rotationFactor + squash * 0.9);
-  ctx.rotate(angle * rotationMix);
+  const renderRotation = angle * rotationMix;
+  ctx.rotate(renderRotation);
 
-  const shell = ctx.createRadialGradient(-r * 0.26, -r * 0.34, r * 0.1, 0, 0, r * 1.08);
-  shell.addColorStop(0, cfg.colorA);
-  shell.addColorStop(0.35, cfg.colorB);
-  shell.addColorStop(0.78, cfg.colorC);
-  shell.addColorStop(1, cfg.colorD);
-  ctx.fillStyle = shell;
-  drawJellyBodyPath(ctx, r, squash, wobble, cfg, time);
-  ctx.fill();
+  const debugLayers = [];
+  const debugOut = Array.isArray(options.layerDebugOut) ? options.layerDebugOut : null;
+  const collectLayerDebug = options.collectLayerDebug === true || !!debugOut;
+  const rotCos = Math.cos(renderRotation);
+  const rotSin = Math.sin(renderRotation);
+  const markLayer = (key, label, localX, localY) => {
+    if (!collectLayerDebug || layerVisibility[key] === false) return;
+    const worldX = x + localX * rotCos - localY * rotSin;
+    const worldY = y + localX * rotSin + localY * rotCos;
+    const item = { key, label, x: worldX, y: worldY };
+    debugLayers.push(item);
+    if (debugOut) debugOut.push(item);
+  };
 
-  ctx.shadowColor = "transparent";
-  ctx.strokeStyle = cfg.outlineColor;
-  ctx.lineWidth = cfg.outlineWidth;
-  drawJellyBodyPath(ctx, r - cfg.outlineWidth * 0.5, squash, wobble, cfg, time);
-  ctx.stroke();
+  if (layerVisibility.bodyGradient) {
+    const shell = ctx.createRadialGradient(-r * 0.26, -r * 0.34, r * 0.1, 0, 0, r * 1.08);
+    shell.addColorStop(0, cfg.colorA);
+    shell.addColorStop(0.35, cfg.colorB);
+    shell.addColorStop(0.78, cfg.colorC);
+    shell.addColorStop(1, cfg.colorD);
+    ctx.fillStyle = shell;
+    drawJellyBodyPath(ctx, r, squash, wobble, cfg, time);
+    ctx.fill();
+    markLayer("bodyGradient", "主体渐变", -r * 0.24, -r * 0.36);
+  }
 
-  ctx.fillStyle = `rgba(255,255,255,${cfg.glossOpacity})`;
-  ctx.beginPath();
-  ctx.ellipse(r * cfg.glossOffsetX, r * cfg.glossOffsetY, r * cfg.glossScaleX, r * cfg.glossScaleY, -0.42, 0, Math.PI * 2);
-  ctx.fill();
+  // 轻微边缘发光：提升“糖感”和通透度，避免塑料硬壳感
+  if (layerVisibility.edgeGlow && cfg.edgeGlowOpacity > 0) {
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,157,194,${clamp01(cfg.edgeGlowOpacity)})`;
+    if (typeof cfg.edgeGlowColor === "string" && cfg.edgeGlowColor.trim()) {
+      ctx.strokeStyle = cfg.edgeGlowColor;
+      ctx.globalAlpha = clamp01(cfg.edgeGlowOpacity);
+    }
+    ctx.lineWidth = Math.max(1, cfg.outlineWidth * Math.max(1, cfg.edgeGlowWidthMul));
+    ctx.shadowColor = typeof cfg.edgeGlowColor === "string" && cfg.edgeGlowColor.trim() ? cfg.edgeGlowColor : "#ff9dc2";
+    ctx.shadowBlur = Math.max(1, r * Math.max(0.02, cfg.edgeGlowBlurRatio));
+    drawJellyBodyPath(ctx, r - cfg.outlineWidth * 0.1, squash, wobble, cfg, time);
+    ctx.stroke();
+    ctx.restore();
+    markLayer("edgeGlow", "边缘发光", r * 0.38, -r * 0.74);
+  }
 
-  ctx.fillStyle = `rgba(255,255,255,${cfg.bandOpacity})`;
-  ctx.beginPath();
-  ctx.ellipse(r * cfg.bandOffsetX, r * cfg.bandOffsetY, r * cfg.bandScaleX, r * cfg.bandScaleY, -0.14, 0, Math.PI * 2);
-  ctx.fill();
+  if (layerVisibility.outline) {
+    ctx.shadowColor = "transparent";
+    ctx.strokeStyle = cfg.outlineColor;
+    ctx.lineWidth = cfg.outlineWidth;
+    drawJellyBodyPath(ctx, r - cfg.outlineWidth * 0.5, squash, wobble, cfg, time);
+    ctx.stroke();
+    markLayer("outline", "外描边", r * 0.67, -r * 0.4);
+  }
 
-  ctx.fillStyle = `rgba(175, 215, 48, ${cfg.blobOpacity})`;
-  ctx.beginPath();
-  ctx.ellipse(r * cfg.blob1OffsetX, r * cfg.blob1OffsetY, r * cfg.blob1ScaleX, r * cfg.blob1ScaleY, 0.15, 0, Math.PI * 2);
-  ctx.ellipse(r * cfg.blob2OffsetX, r * cfg.blob2OffsetY, r * cfg.blob2ScaleX, r * cfg.blob2ScaleY, -0.3, 0, Math.PI * 2);
-  ctx.fill();
+  if (layerVisibility.gloss) {
+    ctx.fillStyle = `rgba(255,255,255,${cfg.glossOpacity})`;
+    ctx.beginPath();
+    ctx.ellipse(r * cfg.glossOffsetX, r * cfg.glossOffsetY, r * cfg.glossScaleX, r * cfg.glossScaleY, -0.42, 0, Math.PI * 2);
+    ctx.fill();
+    markLayer("gloss", "高光", r * cfg.glossOffsetX, r * cfg.glossOffsetY);
+  }
 
-  ctx.fillStyle = `rgba(255,255,220,${cfg.bubbleOpacity})`;
-  ctx.beginPath();
-  ctx.arc(r * cfg.bubble1OffsetX, r * cfg.bubble1OffsetY, r * cfg.bubble1Radius, 0, Math.PI * 2);
-  ctx.arc(r * cfg.bubble2OffsetX, r * cfg.bubble2OffsetY, r * cfg.bubble2Radius, 0, Math.PI * 2);
-  ctx.fill();
+  if (layerVisibility.band) {
+    ctx.fillStyle = `rgba(255,255,255,${cfg.bandOpacity})`;
+    ctx.beginPath();
+    ctx.ellipse(r * cfg.bandOffsetX, r * cfg.bandOffsetY, r * cfg.bandScaleX, r * cfg.bandScaleY, -0.14, 0, Math.PI * 2);
+    ctx.fill();
+    markLayer("band", "亮带", r * cfg.bandOffsetX, r * cfg.bandOffsetY + r * 0.12);
+  }
+
+  if (layerVisibility.blobs) {
+    ctx.fillStyle = `rgba(255, 124, 156, ${cfg.blobOpacity})`;
+    ctx.beginPath();
+    ctx.ellipse(r * cfg.blob1OffsetX, r * cfg.blob1OffsetY, r * cfg.blob1ScaleX, r * cfg.blob1ScaleY, 0.15, 0, Math.PI * 2);
+    ctx.ellipse(r * cfg.blob2OffsetX, r * cfg.blob2OffsetY, r * cfg.blob2ScaleX, r * cfg.blob2ScaleY, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    markLayer("blobs", "内部斑块", r * cfg.blob1OffsetX, r * cfg.blob1OffsetY);
+  }
+
+  if (layerVisibility.bubbles) {
+    ctx.fillStyle = `rgba(255,236,244,${cfg.bubbleOpacity})`;
+    ctx.beginPath();
+    ctx.arc(r * cfg.bubble1OffsetX, r * cfg.bubble1OffsetY, r * cfg.bubble1Radius, 0, Math.PI * 2);
+    ctx.arc(r * cfg.bubble2OffsetX, r * cfg.bubble2OffsetY, r * cfg.bubble2Radius, 0, Math.PI * 2);
+    ctx.fill();
+    markLayer("bubbles", "气泡", r * cfg.bubble1OffsetX, r * cfg.bubble1OffsetY);
+  }
 
   const eyeY = r * cfg.eyeY;
   const eyeOffsetX = r * cfg.eyeOffsetX;
@@ -267,39 +345,55 @@ function drawJellyBall(ctx, options = {}) {
     ctx.moveTo(leftEyeX - squintHalfW, eyeCenterY - squintHalfH);
     ctx.lineTo(leftEyeX + squintHalfW, eyeCenterY);
     ctx.lineTo(leftEyeX - squintHalfW, eyeCenterY + squintHalfH);
-    ctx.stroke();
-
-    // 右眼: <
-    ctx.beginPath();
-    ctx.moveTo(rightEyeX + squintHalfW, eyeCenterY - squintHalfH);
-    ctx.lineTo(rightEyeX - squintHalfW, eyeCenterY);
-    ctx.lineTo(rightEyeX + squintHalfW, eyeCenterY + squintHalfH);
-    ctx.stroke();
+    if (layerVisibility.squintEyes) {
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(rightEyeX + squintHalfW, eyeCenterY - squintHalfH);
+      ctx.lineTo(rightEyeX - squintHalfW, eyeCenterY);
+      ctx.lineTo(rightEyeX + squintHalfW, eyeCenterY + squintHalfH);
+      ctx.stroke();
+      markLayer("squintEyes", "眯眼", rightEyeX, eyeCenterY);
+    }
   } else {
-    ctx.fillStyle = cfg.eyeColor;
-    ctx.beginPath();
-    ctx.arc(leftEyeX, eyeCenterY, eyeR, 0, Math.PI * 2);
-    ctx.arc(rightEyeX, eyeCenterY, eyeR, 0, Math.PI * 2);
-    ctx.fill();
+    if (layerVisibility.eyesWhite) {
+      ctx.fillStyle = cfg.eyeColor;
+      ctx.beginPath();
+      ctx.arc(leftEyeX, eyeCenterY, eyeR, 0, Math.PI * 2);
+      ctx.arc(rightEyeX, eyeCenterY, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+      markLayer("eyesWhite", "眼白", rightEyeX + eyeR * 0.1, eyeCenterY - eyeR * 0.1);
+    }
 
-    ctx.fillStyle = cfg.pupilColor;
-    ctx.beginPath();
-    ctx.arc(leftEyeX + pupilDx, eyeCenterY + pupilDy, pupilR, 0, Math.PI * 2);
-    ctx.arc(rightEyeX + pupilDx, eyeCenterY + pupilDy, pupilR, 0, Math.PI * 2);
-    ctx.fill();
+    if (layerVisibility.pupils) {
+      ctx.fillStyle = cfg.pupilColor;
+      ctx.beginPath();
+      ctx.arc(leftEyeX + pupilDx, eyeCenterY + pupilDy, pupilR, 0, Math.PI * 2);
+      ctx.arc(rightEyeX + pupilDx, eyeCenterY + pupilDy, pupilR, 0, Math.PI * 2);
+      ctx.fill();
+      markLayer("pupils", "瞳孔", rightEyeX + pupilDx, eyeCenterY + pupilDy);
+    }
 
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
-    ctx.beginPath();
-    ctx.arc(leftEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy, pupilHighlightR, 0, Math.PI * 2);
-    ctx.arc(rightEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy, pupilHighlightR, 0, Math.PI * 2);
-    ctx.fill();
+    if (layerVisibility.pupilHighlights) {
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.beginPath();
+      ctx.arc(leftEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy, pupilHighlightR, 0, Math.PI * 2);
+      ctx.arc(rightEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy, pupilHighlightR, 0, Math.PI * 2);
+      ctx.fill();
+      markLayer("pupilHighlights", "瞳孔高光", rightEyeX + pupilHighlightDx, eyeCenterY + pupilHighlightDy);
+    }
   }
 
   ctx.restore();
+  return {
+    radius: r,
+    layers: debugLayers,
+    layerVisibility,
+  };
 }
 
 window.BallVisual = {
   defaultBallVisualCfg,
+  defaultLayerVisibility,
   getVisualRadius,
   drawJellyBall,
 };

@@ -15,13 +15,14 @@ const WORLD_H = 844;
 const PX_PER_METER = 100;
 const DEFAULT_VISIBLE_METERS = 50;
 const CANVAS_MARGIN = 24;
+const HAZARD_CFG_STORAGE_KEY = "swipe_hazard_cfg_v1";
 
 let latestResult = null;
 
 const ANCHOR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
 const GEAR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
 
-const INITIAL_PREGEN_ANCHORS = 10;
+const INITIAL_PREGEN_ANCHORS = 6;
 const ANCHOR_DIFFICULTY_START_METERS = 30;
 const ANCHOR_DIFFICULTY_FULL_METERS = 160;
 const ANCHOR_SPACING_BONUS_MIN = 26;
@@ -30,25 +31,13 @@ const RED_ANCHOR_CHANCE = 1 / 3;
 const FIRST_BLUE_ANCHOR_COUNT = 5;
 
 const TRACK_ENABLED = true;
-const TRACK_UNLOCK_METERS = 20;
 const TRACK_UNLOCK_ANCHOR_COUNT = 10;
-const BASE_TRACK_SLOT_INTERVAL = 6;
-const BASE_TRACK_SPAWN_CHANCE = 0.62;
-const BASE_TRACK_SPAWN_CHANCE_MAX = 0.9;
 const TRACK_SLOT_INTERVAL_MIN = 3;
 const TRACK_ANCHOR_BLOCK_Y = 170;
 const TRACK_ANCHOR_BLOCK_X_RATIO = 0.72;
-const DAMAGE_TRACK_UNLOCK_METERS = 100;
-const DAMAGE_TRACK_SLOT_INTERVAL = 7;
-const DAMAGE_TRACK_SPAWN_CHANCE = 0.38;
-const DAMAGE_TRACK_SPAWN_CHANCE_MAX = 0.7;
 
 const GEAR_ENABLED = true;
-const GEAR_UNLOCK_METERS = 50;
 const GEAR_UNLOCK_ANCHOR_COUNT = 20;
-const GEAR_SLOT_INTERVAL = 5;
-const GEAR_SPAWN_CHANCE = 0.4;
-const GEAR_SPAWN_CHANCE_MAX = 0.72;
 const GEAR_SLOT_INTERVAL_MIN = 3;
 const GEAR_ANCHOR_BLOCK_Y = 190;
 const GEAR_ANCHOR_BLOCK_X_PAD = 74;
@@ -57,15 +46,42 @@ const GEAR_SAFE_ANCHOR_Y_OFFSET_MIN = 25;
 const GEAR_SAFE_ANCHOR_Y_OFFSET_MAX = 70;
 const GEAR_SAFE_ANCHOR_TRY_COUNT = 14;
 
-const HAZARD_DENSITY_START_METERS = 100;
-const HAZARD_DENSITY_FULL_METERS = 260;
-
 const cfg = {
   anchorSpacingMin: 120,
   anchorSpacingMax: 185,
   anchorSidePadding: 70,
-  maxStretch: 107,
+  maxStretch: 115,
 };
+
+const defaultHazardCfg = {
+  baseTrackUnlockMeters: 12,
+  gearUnlockMeters: 34,
+  damageTrackUnlockMeters: 61,
+  baseTrackSlotInterval: 3,
+  baseTrackSpawnChance: 0.52,
+  baseTrackSpawnChanceMax: 0.86,
+  damageTrackSlotInterval: 4,
+  damageTrackSpawnChance: 0.4,
+  damageTrackSpawnChanceMax: 0.74,
+  gearSlotInterval: 3,
+  gearSpawnChance: 0.55,
+  gearSpawnChanceMax: 0.85,
+  hazardDensityStartMeters: 80,
+  hazardDensityFullMeters: 260,
+};
+
+const hazardCfg = { ...defaultHazardCfg };
+
+const hazardIntegerKeys = new Set([
+  "baseTrackUnlockMeters",
+  "gearUnlockMeters",
+  "damageTrackUnlockMeters",
+  "baseTrackSlotInterval",
+  "damageTrackSlotInterval",
+  "gearSlotInterval",
+  "hazardDensityStartMeters",
+  "hazardDensityFullMeters",
+]);
 
 function clamp(v, min, max) {
   return Math.max(min, Math.min(max, v));
@@ -78,6 +94,62 @@ function clamp01(v) {
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
+
+function normalizeHazardCfg() {
+  const defs = [
+    ["baseTrackUnlockMeters", 0, 220],
+    ["gearUnlockMeters", 0, 260],
+    ["damageTrackUnlockMeters", 0, 320],
+    ["baseTrackSlotInterval", 1, 10],
+    ["baseTrackSpawnChance", 0.05, 1],
+    ["baseTrackSpawnChanceMax", 0.05, 1],
+    ["damageTrackSlotInterval", 1, 10],
+    ["damageTrackSpawnChance", 0.05, 1],
+    ["damageTrackSpawnChanceMax", 0.05, 1],
+    ["gearSlotInterval", 1, 10],
+    ["gearSpawnChance", 0.05, 1],
+    ["gearSpawnChanceMax", 0.05, 1],
+    ["hazardDensityStartMeters", 0, 320],
+    ["hazardDensityFullMeters", 10, 500],
+  ];
+  for (const [key, min, max] of defs) {
+    let v = Number(hazardCfg[key]);
+    if (!Number.isFinite(v)) v = defaultHazardCfg[key];
+    v = clamp(v, min, max);
+    if (hazardIntegerKeys.has(key)) v = Math.round(v);
+    hazardCfg[key] = v;
+  }
+  if (hazardCfg.baseTrackSpawnChance > hazardCfg.baseTrackSpawnChanceMax) {
+    [hazardCfg.baseTrackSpawnChance, hazardCfg.baseTrackSpawnChanceMax] = [hazardCfg.baseTrackSpawnChanceMax, hazardCfg.baseTrackSpawnChance];
+  }
+  if (hazardCfg.damageTrackSpawnChance > hazardCfg.damageTrackSpawnChanceMax) {
+    [hazardCfg.damageTrackSpawnChance, hazardCfg.damageTrackSpawnChanceMax] = [hazardCfg.damageTrackSpawnChanceMax, hazardCfg.damageTrackSpawnChance];
+  }
+  if (hazardCfg.gearSpawnChance > hazardCfg.gearSpawnChanceMax) {
+    [hazardCfg.gearSpawnChance, hazardCfg.gearSpawnChanceMax] = [hazardCfg.gearSpawnChanceMax, hazardCfg.gearSpawnChance];
+  }
+  if (hazardCfg.hazardDensityStartMeters >= hazardCfg.hazardDensityFullMeters) {
+    hazardCfg.hazardDensityFullMeters = hazardCfg.hazardDensityStartMeters + 1;
+  }
+}
+
+function loadHazardCfgFromStorage() {
+  try {
+    const raw = localStorage.getItem(HAZARD_CFG_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    for (const key of Object.keys(defaultHazardCfg)) {
+      const val = Number(parsed[key]);
+      if (Number.isFinite(val)) hazardCfg[key] = val;
+    }
+  } catch {
+    // ignore
+  }
+}
+
+loadHazardCfgFromStorage();
+normalizeHazardCfg();
 
 function rand(min, max) {
   return Math.random() * (max - min) + min;
@@ -299,7 +371,6 @@ function spawnMovingTrackAtY(state, y, mode = "pin") {
 
 function canSpawnMovingTrackFromGenerator(state) {
   if (!TRACK_ENABLED || !state.movingTrack) return false;
-  if (state.runMeters < TRACK_UNLOCK_METERS) return false;
   if (state.anchorSpawnCount < TRACK_UNLOCK_ANCHOR_COUNT) return false;
   const t = state.movingTrack;
   if (!t.activated) return true;
@@ -307,41 +378,42 @@ function canSpawnMovingTrackFromGenerator(state) {
   return t.y > virtualCameraY + WORLD_H * 1.2;
 }
 
-function shouldSpawnBaseTrackOnNextSlot(state) {
+function shouldSpawnBaseTrackOnNextSlot(state, slotMeters = state.runMeters) {
   if (!canSpawnMovingTrackFromGenerator(state)) return false;
+  if (slotMeters < hazardCfg.baseTrackUnlockMeters) return false;
   if (!state.movingTrack.activated) return true;
-  const densityT = clamp01((state.runMeters - HAZARD_DENSITY_START_METERS) / Math.max(1, HAZARD_DENSITY_FULL_METERS - HAZARD_DENSITY_START_METERS));
-  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(BASE_TRACK_SLOT_INTERVAL, TRACK_SLOT_INTERVAL_MIN, densityT)));
-  const dynamicChance = lerp(BASE_TRACK_SPAWN_CHANCE, BASE_TRACK_SPAWN_CHANCE_MAX, densityT);
+  const densityT = clamp01((slotMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.baseTrackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(hazardCfg.baseTrackSpawnChance, hazardCfg.baseTrackSpawnChanceMax, densityT);
   if (state.baseTrackSlotsSinceSpawn < dynamicInterval) return false;
   return Math.random() < dynamicChance;
 }
 
-function shouldSpawnDamageTrackOnNextSlot(state) {
+function shouldSpawnDamageTrackOnNextSlot(state, slotMeters = state.runMeters) {
   if (!canSpawnMovingTrackFromGenerator(state)) return false;
-  if (state.runMeters < DAMAGE_TRACK_UNLOCK_METERS) return false;
+  if (slotMeters < hazardCfg.damageTrackUnlockMeters) return false;
   if (!state.movingTrack.activated) return true;
-  const densityT = clamp01((state.runMeters - HAZARD_DENSITY_START_METERS) / Math.max(1, HAZARD_DENSITY_FULL_METERS - HAZARD_DENSITY_START_METERS));
-  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(DAMAGE_TRACK_SLOT_INTERVAL, TRACK_SLOT_INTERVAL_MIN, densityT)));
-  const dynamicChance = lerp(DAMAGE_TRACK_SPAWN_CHANCE, DAMAGE_TRACK_SPAWN_CHANCE_MAX, densityT);
+  const densityT = clamp01((slotMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.damageTrackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(hazardCfg.damageTrackSpawnChance, hazardCfg.damageTrackSpawnChanceMax, densityT);
   if (state.damageTrackSlotsSinceSpawn < dynamicInterval) return false;
   return Math.random() < dynamicChance;
 }
 
-function canSpawnGearFromGenerator(state) {
+function canSpawnGearFromGenerator(state, slotMeters = state.runMeters) {
   if (!GEAR_ENABLED) return false;
-  if (state.runMeters < GEAR_UNLOCK_METERS) return false;
+  if (slotMeters < hazardCfg.gearUnlockMeters) return false;
   if (state.anchorSpawnCount < GEAR_UNLOCK_ANCHOR_COUNT) return false;
-  if (state.gearSlotsSinceSpawn < GEAR_SLOT_INTERVAL) return false;
+  if (state.gearSlotsSinceSpawn < hazardCfg.gearSlotInterval) return false;
   return true;
 }
 
-function shouldSpawnGearOnNextSlot(state) {
-  if (!canSpawnGearFromGenerator(state)) return false;
+function shouldSpawnGearOnNextSlot(state, slotMeters = state.runMeters) {
+  if (!canSpawnGearFromGenerator(state, slotMeters)) return false;
   if (!state.gears.length) return true;
-  const densityT = clamp01((state.runMeters - HAZARD_DENSITY_START_METERS) / Math.max(1, HAZARD_DENSITY_FULL_METERS - HAZARD_DENSITY_START_METERS));
-  const dynamicInterval = Math.max(GEAR_SLOT_INTERVAL_MIN, Math.round(lerp(GEAR_SLOT_INTERVAL, GEAR_SLOT_INTERVAL_MIN, densityT)));
-  const dynamicChance = lerp(GEAR_SPAWN_CHANCE, GEAR_SPAWN_CHANCE_MAX, densityT);
+  const densityT = clamp01((slotMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const dynamicInterval = Math.max(GEAR_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.gearSlotInterval, GEAR_SLOT_INTERVAL_MIN, densityT)));
+  const dynamicChance = lerp(hazardCfg.gearSpawnChance, hazardCfg.gearSpawnChanceMax, densityT);
   if (state.gearSlotsSinceSpawn < dynamicInterval) return false;
   return Math.random() < dynamicChance;
 }
@@ -350,10 +422,11 @@ function addGeneratedSlotAbove(state) {
   const spacingRange = getDynamicAnchorSpacingRange(state);
   const spacing = rand(spacingRange.min, spacingRange.max);
   const y = state.generatedTopY - spacing;
+  const slotMeters = Math.max(0, -y / PX_PER_METER);
 
-  const spawnBaseTrack = shouldSpawnBaseTrackOnNextSlot(state);
-  const spawnDamageTrack = shouldSpawnDamageTrackOnNextSlot(state);
-  const spawnGear = shouldSpawnGearOnNextSlot(state);
+  const spawnBaseTrack = shouldSpawnBaseTrackOnNextSlot(state, slotMeters);
+  const spawnDamageTrack = shouldSpawnDamageTrackOnNextSlot(state, slotMeters);
+  const spawnGear = shouldSpawnGearOnNextSlot(state, slotMeters);
 
   const candidates = [];
   if (spawnBaseTrack) candidates.push("baseTrack");

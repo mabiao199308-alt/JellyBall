@@ -59,6 +59,7 @@ const CODE_DEFAULT_SAVE_ENDPOINT_FALLBACK = "http://127.0.0.1:8130/__save_code_d
 const TUTORIAL_SEEN_STORAGE_KEY = "swipe_tutorial_seen_v1";
 const ANCHOR_X_RATIOS = [0.2, 0.35, 0.5, 0.65, 0.8];
 const LOOK_DIR_SMOOTH = 12;
+const AIM_SIDE_FOLLOW_MARGIN = 0;
 const JELLY_DEFORM_DECAY = 3.8;
 const JELLY_WOBBLE_DECAY = 3.2;
 const JELLY_OSC_BASE = 10;
@@ -90,7 +91,8 @@ const TRACK_SPAWN_CHANCE_MAX = 0.96;
 const TRACK_SLOT_INTERVAL_MIN = 3;
 const TRACK_ANCHOR_BLOCK_Y = 170;
 const TRACK_ANCHOR_BLOCK_X_RATIO = 0.72;
-const INITIAL_PREGEN_ANCHORS = 10;
+const INITIAL_PREGEN_ANCHORS = 6;
+const GENERATOR_AHEAD_SCREENS = 1.6;
 const ANCHOR_DIFFICULTY_START_METERS = 30;
 const ANCHOR_DIFFICULTY_FULL_METERS = 160;
 const ANCHOR_SPACING_BONUS_MIN = 26;
@@ -119,9 +121,9 @@ const TRACK_GEAR_SPAWN_RATIO = 0.4;
 const HAZARD_DENSITY_START_METERS = 80;
 const HAZARD_DENSITY_FULL_METERS = 260;
 const defaultHazardCfg = {
-  baseTrackUnlockMeters: 12,
-  gearUnlockMeters: 34,
-  damageTrackUnlockMeters: 61,
+  baseTrackUnlockMeters: 22,
+  gearUnlockMeters: 47,
+  damageTrackUnlockMeters: 81,
   baseTrackSlotInterval: 3,
   baseTrackSpawnChance: 0.52,
   baseTrackSpawnChanceMax: 0.86,
@@ -380,6 +382,7 @@ const world = {
   dragging: false,
   pointerId: null,
   pointer: { x: 0, y: 0 },
+  pointerScreen: { x: 0, y: 0 },
   lastTime: 0,
   fps: 0,
   breakFlash: 0,
@@ -1450,40 +1453,40 @@ function canSpawnMovingTrackFromGenerator() {
   return t.y > world.cameraY + world.h * 1.2 && (t.mode !== "pin" || world.activeAnchor !== t.pinAnchor);
 }
 
-function shouldSpawnBaseTrackOnNextSlot() {
+function shouldSpawnBaseTrackOnNextSlot(slotMeters = world.runMeters) {
   if (!canSpawnMovingTrackFromGenerator()) return false;
-  if (world.runMeters < hazardCfg.baseTrackUnlockMeters) return false;
+  if (slotMeters < hazardCfg.baseTrackUnlockMeters) return false;
   if (!world.movingTrack.activated) return true;
-  const densityT = clamp01((world.runMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const densityT = clamp01((slotMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
   const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.baseTrackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
   const dynamicChance = lerp(hazardCfg.baseTrackSpawnChance, hazardCfg.baseTrackSpawnChanceMax, densityT);
   if (world.baseTrackSlotsSinceSpawn < dynamicInterval) return false;
   return Math.random() < dynamicChance;
 }
 
-function shouldSpawnDamageTrackOnNextSlot() {
+function shouldSpawnDamageTrackOnNextSlot(slotMeters = world.runMeters) {
   if (!canSpawnMovingTrackFromGenerator()) return false;
-  if (world.runMeters < hazardCfg.damageTrackUnlockMeters) return false;
+  if (slotMeters < hazardCfg.damageTrackUnlockMeters) return false;
   if (!world.movingTrack.activated) return true;
-  const densityT = clamp01((world.runMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const densityT = clamp01((slotMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
   const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.damageTrackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
   const dynamicChance = lerp(hazardCfg.damageTrackSpawnChance, hazardCfg.damageTrackSpawnChanceMax, densityT);
   if (world.damageTrackSlotsSinceSpawn < dynamicInterval) return false;
   return Math.random() < dynamicChance;
 }
 
-function canSpawnGearFromGenerator() {
+function canSpawnGearFromGenerator(slotMeters = world.runMeters) {
   if (!GEAR_ENABLED) return false;
-  if (world.runMeters < hazardCfg.gearUnlockMeters) return false;
+  if (slotMeters < hazardCfg.gearUnlockMeters) return false;
   if (world.anchorSpawnCount < GEAR_UNLOCK_ANCHOR_COUNT) return false;
   if (world.gearSlotsSinceSpawn < hazardCfg.gearSlotInterval) return false;
   return true;
 }
 
-function shouldSpawnGearOnNextSlot() {
-  if (!canSpawnGearFromGenerator()) return false;
+function shouldSpawnGearOnNextSlot(slotMeters = world.runMeters) {
+  if (!canSpawnGearFromGenerator(slotMeters)) return false;
   if (!world.gears.length) return true;
-  const densityT = clamp01((world.runMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
+  const densityT = clamp01((slotMeters - hazardCfg.hazardDensityStartMeters) / Math.max(1, hazardCfg.hazardDensityFullMeters - hazardCfg.hazardDensityStartMeters));
   const dynamicInterval = Math.max(GEAR_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.gearSlotInterval, GEAR_SLOT_INTERVAL_MIN, densityT)));
   const dynamicChance = lerp(hazardCfg.gearSpawnChance, hazardCfg.gearSpawnChanceMax, densityT);
   if (world.gearSlotsSinceSpawn < dynamicInterval) return false;
@@ -1663,10 +1666,11 @@ function addGeneratedSlotAbove() {
   const spacingRange = getDynamicAnchorSpacingRange();
   const spacing = rand(spacingRange.min, spacingRange.max);
   const y = world.generatedTopY - spacing;
+  const slotMeters = Math.max(0, (world.startY - y) / Math.max(1, cfg.pxPerMeter));
 
-  const spawnBaseTrack = shouldSpawnBaseTrackOnNextSlot();
-  const spawnDamageTrack = shouldSpawnDamageTrackOnNextSlot();
-  const spawnGear = shouldSpawnGearOnNextSlot();
+  const spawnBaseTrack = shouldSpawnBaseTrackOnNextSlot(slotMeters);
+  const spawnDamageTrack = shouldSpawnDamageTrackOnNextSlot(slotMeters);
+  const spawnGear = shouldSpawnGearOnNextSlot(slotMeters);
 
   const candidates = [];
   if (spawnBaseTrack) candidates.push("baseTrack");
@@ -1737,6 +1741,10 @@ function resetRun() {
   world.state = "aiming";
   world.dragging = false;
   world.pointerId = null;
+  world.pointer.x = world.ball.x;
+  world.pointer.y = world.ball.y;
+  world.pointerScreen.x = world.ball.x - world.cameraX;
+  world.pointerScreen.y = world.ball.y - world.cameraY;
   world.breakFlash = 0;
   world.hookFlash = 0;
   world.hookCooldown = 0;
@@ -1930,6 +1938,95 @@ function toWorldPoint(e) {
   };
 }
 
+function screenToWorldPoint(p) {
+  return {
+    x: p.x + world.cameraX,
+    y: p.y + world.cameraY,
+  };
+}
+
+function toScreenPoint(e) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top,
+  };
+}
+
+function getHookHitRadius(anchor) {
+  if (!anchor) return 0;
+  return cfg.ballRadius + cfg.hookRadius + (anchor.radius || 0);
+}
+
+function getTrackPinCandidate() {
+  if (!TRACK_ENABLED || !world.movingTrack) return null;
+  const t = world.movingTrack;
+  if (!t.activated || t.mode !== "pin") return null;
+  if (world.timeSec < t.hiddenUntilSec) return null;
+  return t.pinAnchor || null;
+}
+
+function getHookCandidates() {
+  const out = [...world.anchors];
+  const trackPin = getTrackPinCandidate();
+  if (trackPin && !out.includes(trackPin)) out.push(trackPin);
+  return out;
+}
+
+function findBestReviveAnchor() {
+  const b = world.ball;
+  const candidates = getHookCandidates();
+  if (!candidates.length) return null;
+
+  let strictBest = null;
+  let strictBestDist = Number.POSITIVE_INFINITY;
+  let nearest = null;
+  let nearestDist = Number.POSITIVE_INFINITY;
+
+  for (const a of candidates) {
+    if (!a) continue;
+    // 复活仅允许挂到球上方的钉子，避免挂到下方后无法稳定拖拽
+    if (a.y >= b.y) continue;
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d < nearestDist) {
+      nearestDist = d;
+      nearest = a;
+    }
+    if (d <= getHookHitRadius(a) && d < strictBestDist) {
+      strictBestDist = d;
+      strictBest = a;
+    }
+  }
+
+  return {
+    anchor: strictBest || nearest,
+    strict: !!strictBest,
+  };
+}
+
+function reviveFromGameOver() {
+  if (world.state !== "gameover") return false;
+  const result = findBestReviveAnchor();
+  const target = result?.anchor;
+  if (!target) return false;
+
+  if (!result.strict) {
+    const safeLen = Math.max(cfg.tetherRestLength, cfg.ballRadius + target.radius + 6);
+    const minY = world.cameraY + cfg.ballRadius + 2;
+    world.ball.x = target.x;
+    world.ball.y = Math.max(minY, target.y + safeLen);
+  }
+
+  hookToAnchor(target);
+  world.lastReleasedAnchor = null;
+  world.breakFlash = 0;
+  world.dragging = false;
+  world.pointerId = null;
+  syncTutorialOverlay();
+  setStatus("复活成功，已挂到最近可挂钉子。");
+  return true;
+}
+
 function onPointerDown(e) {
   ensureAudioReady();
   if (world.state === "gameover") {
@@ -1942,10 +2039,12 @@ function onPointerDown(e) {
   const p = toWorldPoint(e);
   const d = Math.hypot(p.x - world.ball.x, p.y - world.ball.y);
   if (d <= cfg.ballRadius * 2) {
+    const screenP = toScreenPoint(e);
     world.dragging = true;
     world.state = "aiming";
     world.pointerId = e.pointerId;
     world.pointer = p;
+    world.pointerScreen = screenP;
     world.ball.vx = 0;
     world.ball.vy = 0;
     canvas.setPointerCapture(e.pointerId);
@@ -1955,15 +2054,28 @@ function onPointerDown(e) {
 
 function onPointerMove(e) {
   if (!world.dragging || e.pointerId !== world.pointerId) return;
-  world.pointer = toWorldPoint(e);
+  world.pointerScreen = toScreenPoint(e);
 }
 
 function onPointerUp(e) {
   if (e.pointerId !== world.pointerId) return;
-  if (world.dragging && world.state === "aiming") launchBall();
+  if (world.dragging && world.state === "aiming") {
+    world.pointerScreen = toScreenPoint(e);
+    world.pointer = screenToWorldPoint(world.pointerScreen);
+    launchBall();
+  }
   world.dragging = false;
   world.pointerId = null;
   syncTutorialOverlay();
+}
+
+function onKeyDown(e) {
+  if (world.state !== "gameover") return;
+  if (e.code !== "KeyR") return;
+  e.preventDefault();
+  if (!reviveFromGameOver()) {
+    setStatus("当前位置没有可复活钉子，请重开。", true);
+  }
 }
 
 function clampToMaxStretch(x, y, anchor) {
@@ -1979,6 +2091,14 @@ function launchBall() {
   if (!world.activeAnchor) return;
   const a = world.activeAnchor;
   const b = world.ball;
+
+  // 瞄准阶段允许跟随镜头在屏内侧向补位；发射前先按当前镜头做一次最终净化
+  const minAimX = world.cameraX + cfg.ballRadius + AIM_SIDE_FOLLOW_MARGIN;
+  const maxAimX = world.cameraX + world.w - cfg.ballRadius - AIM_SIDE_FOLLOW_MARGIN;
+  const minAimY = world.cameraY + cfg.ballRadius;
+  b.x = clamp(b.x, minAimX, maxAimX);
+  b.y = Math.max(minAimY, b.y);
+
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const dist = Math.hypot(dx, dy);
@@ -2282,7 +2402,7 @@ function checkGearHit() {
 }
 
 function ensureAnchorsCoverage() {
-  const targetTop = world.cameraY - world.h * 2.4;
+  const targetTop = world.cameraY - world.h * GENERATOR_AHEAD_SCREENS;
   while (world.generatedTopY > targetTop) addGeneratedSlotAbove();
 
   const pruneBottom = world.cameraY + world.h * 2.2;
@@ -2708,22 +2828,32 @@ function collideBounds() {
   const b = world.ball;
   const r = cfg.ballRadius;
   if (b.x < r) {
-    const impact = Math.abs(b.vx);
-    b.x = r;
-    b.vx = -b.vx * cfg.restitution;
-    b.vy *= cfg.wallFriction;
-    playWallHitSfx(impact);
-    triggerWallDizzy(impact);
-    if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
+    // 允许“从墙外向内回归”而不触发反弹，避免边缘发射首帧被纠正
+    if (b.vx >= 0) {
+      // no-op
+    } else {
+      const impact = Math.abs(b.vx);
+      b.x = r;
+      b.vx = -b.vx * cfg.restitution;
+      b.vy *= cfg.wallFriction;
+      playWallHitSfx(impact);
+      triggerWallDizzy(impact);
+      if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
+    }
   }
   if (b.x > world.w - r) {
-    const impact = Math.abs(b.vx);
-    b.x = world.w - r;
-    b.vx = -b.vx * cfg.restitution;
-    b.vy *= cfg.wallFriction;
-    playWallHitSfx(impact);
-    triggerWallDizzy(impact);
-    if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
+    // 允许“从墙外向内回归”而不触发反弹，避免边缘发射首帧被纠正
+    if (b.vx <= 0) {
+      // no-op
+    } else {
+      const impact = Math.abs(b.vx);
+      b.x = world.w - r;
+      b.vx = -b.vx * cfg.restitution;
+      b.vy *= cfg.wallFriction;
+      playWallHitSfx(impact);
+      triggerWallDizzy(impact);
+      if (impact > 80) kickJelly(Math.min(0.62, 0.18 + impact / 1050), Math.min(0.56, 0.16 + impact / 1300));
+    }
   }
   const top = world.cameraY + r;
   if (b.y < top) {
@@ -2756,9 +2886,13 @@ function update(dt) {
 
   const draggingAim = world.dragging && world.state === "aiming";
   if (draggingAim) {
+    world.pointer = screenToWorldPoint(world.pointerScreen);
     const clamped = clampToMaxStretch(world.pointer.x, world.pointer.y, world.activeAnchor);
-    world.ball.x = clamped.x;
-    world.ball.y = clamped.y;
+    const minAimX = world.cameraX + cfg.ballRadius + AIM_SIDE_FOLLOW_MARGIN;
+    const maxAimX = world.cameraX + world.w - cfg.ballRadius - AIM_SIDE_FOLLOW_MARGIN;
+    const minAimY = world.cameraY + cfg.ballRadius;
+    world.ball.x = clamp(clamped.x, minAimX, maxAimX);
+    world.ball.y = Math.max(minAimY, clamped.y);
     world.ball.vx = 0;
     world.ball.vy = 0;
   }
@@ -3877,6 +4011,7 @@ window.addEventListener("storage", (e) => {
 });
 
 window.addEventListener("resize", resize);
+window.addEventListener("keydown", onKeyDown);
 canvas.addEventListener("pointerdown", onPointerDown);
 canvas.addEventListener("pointermove", onPointerMove);
 canvas.addEventListener("pointerup", onPointerUp);

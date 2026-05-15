@@ -43,9 +43,7 @@ function isLocalDevHost() {
 }
 
 const IS_LOCAL_DEV_HOST = isLocalDevHost();
-if (!IS_LOCAL_DEV_HOST) {
-  document.body.classList.add("hide-dev-controls");
-}
+document.body.classList.add("hide-dev-controls");
 
 const CFG_STORAGE_KEY = "swipe_debug_cfg_v2";
 const CFG_DEFAULT_OVERRIDE_KEY = "swipe_debug_default_cfg_v1";
@@ -139,7 +137,9 @@ const defaultHazardCfg = {
 const RED_ANCHOR_BLINK_DELAY = 0.5;
 const RED_ANCHOR_VANISH_DELAY = 3;
 const RED_ANCHOR_RESPAWN_DELAY = 2;
-const RED_ANCHOR_CHANCE = 1 / 3;
+const RED_ANCHOR_CHANCE_START = 1 / 3;
+const RED_ANCHOR_CHANCE_END = 1 / 2;
+const RED_ANCHOR_CHANCE_FULL_METERS = 160;
 const FIRST_BLUE_ANCHOR_COUNT = 5;
 const RED_ANCHOR_BLINK_PERIOD_START = 0.5;
 const RED_ANCHOR_BLINK_PERIOD_END = 0.2;
@@ -1286,7 +1286,7 @@ function createAnchor(x, y, radius = 8, options = {}) {
   const id = useFixedId ? options.id : world.anchorIdSeed++;
   if (id >= world.anchorIdSeed) world.anchorIdSeed = id + 1;
   const shouldForceBlue = !options.ignoreEarlyBlueRule && world.anchorSpawnCount < FIRST_BLUE_ANCHOR_COUNT;
-  const isRed = typeof options.isRed === "boolean" ? options.isRed : (shouldForceBlue ? false : Math.random() < RED_ANCHOR_CHANCE);
+  const isRed = typeof options.isRed === "boolean" ? options.isRed : (shouldForceBlue ? false : Math.random() < getDynamicRedAnchorChance());
   return {
     id,
     x,
@@ -1328,6 +1328,12 @@ function getDynamicAnchorSpacingRange() {
   const min = minBase + ANCHOR_SPACING_BONUS_MIN * t;
   const max = maxBase + ANCHOR_SPACING_BONUS_MAX * t;
   return { min, max: Math.max(min + 6, max) };
+}
+
+function getDynamicRedAnchorChance() {
+  const fullMeters = Math.max(1, RED_ANCHOR_CHANCE_FULL_METERS);
+  const t = clamp01(world.runMeters / fullMeters);
+  return lerp(RED_ANCHOR_CHANCE_START, RED_ANCHOR_CHANCE_END, t);
 }
 
 function getRandomizedAnchorXByCursor(cursor) {
@@ -1603,7 +1609,7 @@ function createMovingTrack() {
     wasPinVisible: true,
     activated: false,
     pinAnchor: createAnchor(pinX, world.h * 0.75 - yOffset, pinRadius, {
-      isRed: Math.random() < RED_ANCHOR_CHANCE,
+      isRed: Math.random() < getDynamicRedAnchorChance(),
     }),
     trackGear: {
       x: pinX,
@@ -1645,7 +1651,7 @@ function spawnMovingTrackAtY(track, y, mode = "pin") {
 
   if (mode === "pin") {
     if (track.pinAnchor) {
-      track.pinAnchor.isRed = Math.random() < RED_ANCHOR_CHANCE;
+      track.pinAnchor.isRed = Math.random() < getDynamicRedAnchorChance();
       if (track.pinAnchor.isRed) triggerRedAnchorSpawnAnim(track.pinAnchor);
     }
     track.hiddenUntilSec = world.timeSec;
@@ -2071,6 +2077,14 @@ function onPointerUp(e) {
 }
 
 function onKeyDown(e) {
+  const tag = (e.target && e.target.tagName ? e.target.tagName : "").toUpperCase();
+  const isTypingTarget = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target && e.target.isContentEditable);
+  if (!isTypingTarget && IS_LOCAL_DEV_HOST && e.code === "KeyF") {
+    e.preventDefault();
+    document.body.classList.toggle("hide-dev-controls");
+    return;
+  }
+
   if (world.state !== "gameover") return;
   if (e.code !== "KeyR") return;
   e.preventDefault();

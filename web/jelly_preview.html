@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>大果冻预览</title>
+    <link rel="stylesheet" href="./jelly_preview.css" />
+  </head>
+  <body>
+    <main class="preview-page">
+      <section class="preview-stage">
+        <canvas id="jellyCanvas" width="960" height="960"></canvas>
+      </section>
+
+      <aside class="panel">
+        <h1>大果冻预览</h1>
+        <p class="panel__tips">独立查看配色、果冻形变和边缘发光效果。</p>
+
+        <div class="group">
+          <label>
+            场景预设
+            <select id="presetSelect">
+              <option value="idle">待机</option>
+              <option value="aiming">蓄力</option>
+              <option value="full_hold">拉满按住</option>
+              <option value="launch">发射中</option>
+              <option value="tether">挂绳摆动</option>
+            </select>
+          </label>
+
+          <label class="switch-row">
+            <input id="autoAnimToggle" type="checkbox" checked />
+            自动预设动画
+          </label>
+
+          <label class="switch-row">
+            <input id="showLabelsToggle" type="checkbox" checked />
+            显示层级标记
+          </label>
+        </div>
+
+        <div class="group">
+          <div class="group__title">图层显示控制</div>
+          <div class="layer-quick-actions">
+            <button id="showAllLayersBtn" type="button">全开</button>
+            <button id="hideAllLayersBtn" type="button">全关</button>
+            <button id="showBodyOnlyBtn" type="button">只看主体</button>
+            <button id="showFaceOnlyBtn" type="button">只看面部</button>
+          </div>
+          <div class="layer-list" id="layerPanel"></div>
+        </div>
+
+        <div class="group group--grid" id="sliderPanel"></div>
+
+        <div class="group group--actions">
+          <button id="saveLayersToGameBtn" type="button">保存到当前浏览器</button>
+          <button id="copyLayersConfigBtn" type="button">复制项目默认配置</button>
+          <button id="resetBtn" type="button">恢复默认视觉参数</button>
+          <button id="pauseBtn" type="button">暂停</button>
+          <p class="panel__status" id="saveStatus">支持两种保存：本地即时保存（当前浏览器）/ 复制配置给我写入代码默认值。</p>
+        </div>
+      </aside>
+    </main>
+
+    <script src="./ball_visual.js"></script>
+    <script src="./jelly_preview.js"></script>
+  </body>
+</html>

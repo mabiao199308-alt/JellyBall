@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-GAME_JS = ROOT / "game.js"
+GAME_JS = ROOT / "src" / "main.ts"
 
 
 def _get_local_ips() -> set[str]:
@@ -183,7 +183,7 @@ class DevHandler(SimpleHTTPRequestHandler):
             if patched != source:
                 GAME_JS.write_text(patched, encoding="utf-8")
 
-            return self._send_json(HTTPStatus.OK, {"ok": True, "message": f"已写入 {section} 到 game.js"})
+            return self._send_json(HTTPStatus.OK, {"ok": True, "message": f"已写入 {section} 到 src/main.ts"})
         except ValueError as exc:
             return self._send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(exc)})
         except Exception as exc:
@@ -194,7 +194,7 @@ def main():
     port = 8130
     server = ThreadingHTTPServer(("0.0.0.0", port), DevHandler)
     print(f"Dev server running at http://0.0.0.0:{port}")
-    print("POST /__save_code_defaults 可写回 game.js 默认值（仅 localhost 请求）")
+    print("POST /__save_code_defaults 可写回 src/main.ts 默认值（仅 localhost 请求）")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

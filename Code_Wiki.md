@@ -1,302 +1,286 @@
-# Code Wiki - 皮筋弹射球
+# Code Wiki - Swipe2（TS 工程化版）
 
 ## 1. 项目简介
 
-这是一个竖屏 H5 小游戏原型：
+这是一个竖屏 H5 弹射原型游戏：
 
-- 玩家拖拽小球蓄力
-- 松手后弹射上升
-- 飞行中可挂到新的钉子
-- 目标是不断向上，刷新最高米数
+- 拖拽果冻球蓄力，松手发射
+- 飞行中挂钉持续上升
+- 躲避障碍（轨道/齿轮等）
+- 记录最高米数
 
-当前项目重点是：
+本次重构目标：**从散文件脚本改为 TypeScript + Vite 工程化结构**，便于后续玩法扩展、资源管理与移动端打包。
 
-- 弹射与挂钩手感
-- 小球果冻形变表现
-- 死亡炸开特效
-- 运行时调参
+当前状态：`src/main.ts / src/ball_visual.ts / src/death_fx.ts / src/jelly_preview.ts / src/map_preview.ts` 已全部通过 TS 检查（不再依赖 `@ts-nocheck`）。
 
 ---
 
-## 2. 当前项目结构
+## 2. 目录总览（当前推荐开发入口）
+
+> 推荐以 `web/` 作为主开发目录。
 
 ```text
 swipe_2/
-├── index.html        # 页面结构：游戏画布、米数 HUD、FPS、调试面板
-├── style.css         # 页面与调试面板样式
-├── game.js           # 核心游戏逻辑、物理、输入、渲染、调参面板
-├── ball_visual.js    # 小球视觉与果冻绘制
-├── death_fx.js       # 死亡炸开特效默认配置
-├── ball.png          # 小球参考素材/资源图
-├── .gitignore        # Git 忽略规则
-└── Code_Wiki.md      # 本说明文档
+├── web/
+│   ├── src/
+│   │   ├── main.ts            # 游戏主入口（原 game.js）
+│   │   ├── ball_visual.ts     # 果冻球视觉模块（原 ball_visual.js）
+│   │   ├── death_fx.ts        # 死亡特效默认参数模块（原 death_fx.js）
+│   │   ├── config/
+│   │   │   └── storage_keys.ts # 本地存储键与本地保存接口常量
+│   │   ├── systems/
+│   │   │   ├── camera.ts       # 相机跟随计算逻辑
+│   │   │   ├── death_fx_runtime.ts # 死亡特效粒子/污渍更新与绘制辅助
+│   │   │   ├── hazard_loop.ts  # 障碍槽位选择与计数器更新
+│   │   │   ├── hooks.ts        # 挂钩判定辅助函数
+│   │   │   ├── input.ts        # 屏幕/世界坐标转换
+│   │   │   ├── physics.ts      # 基础物理积分/阻尼工具
+│   │   │   ├── render.ts       # HUD 文本渲染辅助
+│   │   │   ├── render_world.ts # 轨道/锚点/齿轮世界渲染
+│   │   │   ├── spawn.ts        # 关卡生成数学/随机工具
+│   │   │   ├── storage.ts      # 安全读写 localStorage 工具
+│   │   │   └── update_loop.ts  # 主更新循环调度器
+│   │   ├── jelly_preview.ts   # 果冻预览页逻辑
+│   │   └── map_preview.ts     # 地图预览页逻辑
+│   ├── index.html             # 主游戏页
+│   ├── jelly_preview.html     # 果冻可视化调参页
+│   ├── map_preview.html       # 地图生成预览页
+│   ├── style.css              # 主游戏样式
+│   ├── jelly_preview.css      # 果冻预览样式
+│   ├── map_preview.css        # 地图预览样式
+│   ├── dev_server.py          # 本地保存默认参数到源码的接口服务
+│   ├── capacitor.config.json  # Capacitor 配置（webDir=dist）
+│   ├── vite.config.ts         # Vite 多页面打包配置
+│   ├── tsconfig.json          # TS 编译配置
+│   └── package.json           # 工程脚本与依赖
+├── android/                   # Android 工程（Capacitor）
+└── （根目录历史文件）         # 旧版本散文件，后续建议逐步收敛
 ```
-
-当前仓库里已经**没有**果冻实验室相关文件。
 
 ---
 
-## 3. 运行方式
+## 3. 开发与构建命令
 
-这是一个纯前端静态页面项目，直接开本地静态服务即可。
-
-可使用任意空闲端口，下面只是示例：
+在 `web/` 目录执行：
 
 ```bash
-python3 -m http.server 8000
+npm install
+npm run dev
 ```
 
-浏览器打开对应端口地址即可，例如：
+常用命令：
 
-```text
-http://localhost:8000
-```
-
----
-
-## 4. 页面组成
-
-### 游戏区
-
-- 中间是手机比例容器 `#gameShell`
-- 内部只有一个 `canvas#gameCanvas`
-- 顶部 HUD 只显示一个大号米数：`米数：X.X`
-- 左上角有 FPS 显示
-
-### 调试面板
-
-右侧有调试面板，可实时调物理参数：
-
-- 显示全部 / 隐藏高级
-- 保存参数
-- 恢复默认
-
-这些参数会直接影响手感，不需要重启游戏。
+- `npm run dev`：本地开发（Vite）
+- `npm run build`：生产构建（输出 `web/dist`）
+- `npm run preview`：本地预览构建产物
+- `npm run typecheck`：TS 检查
+- `npm run cap:copy`：同步前端构建到 Android 资源
+- `npm run cap:sync`：完整同步 Capacitor 到 Android
 
 ---
 
-## 5. 核心状态与流程
+## 4. 运行时核心模块说明
 
-### 运行状态
+### `web/src/main.ts`
 
-`world.state` 主要有这些值：
+游戏主循环与核心系统：
 
-- `aiming`：瞄准 / 拖拽中
-- `launched`：发射后自由飞行
-- `tethered`：挂到钉子后摆动
-- `dying`：死亡特效播放中
-- `gameover`：本局结束
+- 输入（pointer down/move/up）
+- 发射与挂点逻辑
+- 物理推进（自由飞行/挂绳摆动）
+- 相机跟随、HUD 米数/FPS
+- 关卡内容生成（锚点、轨道、齿轮、红点机制）
+- 死亡判定与特效触发
+- 调试面板参数读写与本地存储
 
-### 一局的主要流程
+### `web/src/ball_visual.ts`
 
-1. 初始时球挂在底部起始钉子下方
-2. 玩家按住球拖拽，进入瞄准态
-3. 松手后按拖拽反方向发射
-4. 飞行中命中新钉子后切到挂绳摆动态
-5. 不断往上挂钉子，米数持续上升
-6. 掉出底部安全区域后触发死亡特效并结算
+果冻球视觉渲染：
 
----
+- 视觉参数默认值
+- 图层开关（主体、发光、眼睛等）
+- 果冻形变路径计算
+- 最终 `drawJellyBall` 绘制入口
 
-## 6. 每个脚本 / 文件的作用
+### `web/src/death_fx.ts`
 
-## 6.1 `index.html`
+死亡特效配置：
 
-职责：页面骨架。
+- 默认值
+- 配置规范化（范围夹取）
 
-包含：
+### `web/src/config/storage_keys.ts`
 
-- 游戏容器 `#gameShell`
-- 顶部米数文本 `#meterDisplay`
-- FPS 文本 `#fpsDisplay`
-- 画布 `#gameCanvas`
-- 调试面板及按钮容器
-- 引入顺序：
-  1. `ball_visual.js`
-  2. `death_fx.js`
-  3. `game.js`
+集中管理：
 
-说明：
+- LocalStorage keys（主配置/果冻/障碍/最高分/引导状态）
+- 本地默认值写回接口地址常量
 
-- `ball_visual.js` 和 `death_fx.js` 提供默认配置与绘制/配置模块
-- `game.js` 依赖它们，因此放在最后加载
+这样可以避免 `main.ts / map_preview.ts / jelly_preview.ts` 重复定义同一组键名。
 
-## 6.2 `style.css`
+### `web/src/systems/camera.ts`
 
-职责：页面视觉布局。
+把主相机跟随算法独立为 `updateCameraState(...)`，`main.ts` 仅传入 world/cfg 与 clamp。
 
-主要内容：
+### `web/src/systems/input.ts`
 
-- 全屏深色背景
-- 中央竖屏手机壳样式
-- 顶部米数 HUD 样式
-- FPS 浮层样式
-- 右侧调试面板样式
+抽离坐标转换：
 
-特点：
+- `toScreenPointFromEvent`
+- `toWorldPointFromEvent`
+- `screenToWorldPoint`
 
-- `#gameCanvas` 占满游戏容器
-- HUD 和 FPS 都是绝对定位浮层
-- 调试面板固定在右侧，不参与游戏画面渲染
+减少主入口中对事件坐标计算的重复代码。
 
-## 6.3 `ball_visual.js`
+### `web/src/systems/storage.ts`
 
-职责：绘制小球外观。
+抽离 LocalStorage 安全工具：
 
-主要内容：
+- `safeGetJSON / safeSetJSON`
+- `safeGetNumber / safeGetString`
+- `safeSetString / safeRemoveKeys`
 
-- `defaultBallVisualCfg`：小球视觉默认参数
-- `getVisualRadius()`：按基础半径算视觉半径
-- `drawJellyBodyPath()`：果冻球主体路径
-- `drawJellyBall()`：完整绘制小球
+便于后续替换存档策略（如版本迁移、云存档桥接）。
 
-当前小球绘制包含：
+### `web/src/systems/render.ts`
 
-- 主体渐变
-- 描边
-- 高光与内部斑块
-- 气泡
-- 眼睛、瞳孔、高光点
+抽离 HUD 文本更新：
 
-和游戏逻辑的关系：
+- `renderMeterHud`
+- `renderFpsHud`
 
-- `game.js` 负责传入位置、角度、速度、眼神方向、形变量
-- `ball_visual.js` 只负责把这些参数画出来
+### `web/src/systems/spawn.ts`
 
-## 6.4 `death_fx.js`
+抽离生成相关纯函数：
 
-职责：提供死亡炸开特效默认配置。
+- 锚点列位置与随机扰动
+- 动态间距曲线
+- 红点概率曲线
+- 最大横向步进计算
 
-主要内容：
+主循环与状态仍在 `main.ts`，但生成数学已可复用、可单测。
 
-- `defaultDeathFxCfg`：死亡特效参数默认值
-- `resolveDeathFxCfg()`：对配置做整理与范围限制
+### `web/src/systems/hazard_loop.ts`
 
-注意：
+抽离“生成槽位循环”的选择与计数逻辑：
 
-- 这里不负责真正渲染
-- 真正的死亡粒子生成、更新、绘制都在 `game.js`
+- `pickGeneratedSlot`
+- `applyGeneratedSlotCounters`
 
-## 6.5 `game.js`
+主文件只负责执行具体生成动作（生成轨道/齿轮/锚点）。
 
-职责：项目核心入口，负责几乎所有运行时逻辑。
+### `web/src/systems/death_fx_runtime.ts`
 
-主要模块：
+抽离死亡特效运行时逻辑：
 
-- Canvas 初始化
-- 调试面板构建与同步
-- 世界状态 `world`
-- 锚点生成与回收
-- Pointer 输入
-- 发射逻辑
-- 挂钩逻辑
-- 自由飞行物理
-- 挂绳摆动物理
-- 相机跟随
-- 米数统计
-- FPS 统计
-- 死亡特效
-- 全部画面渲染
+- 调色板构建
+- 粒子/污渍创建
+- 粒子更新与落地转污渍
+- 死亡特效绘制
 
-你改玩法时，最常动的就是这个文件。
+`main.ts` 负责触发时机与状态切换（dying/gameover），模块负责特效细节更新与渲染。
 
-## 6.6 `ball.png`
+### `web/src/systems/render_world.ts`
 
-职责：参考素材图。
+抽离世界对象渲染：
 
-当前不参与主逻辑执行，但作为资源文件保留在仓库里。
+- `drawMovingTrackWorld`
+- `drawAnchorsWorld`
+- `drawGearHazardsWorld`
 
-## 6.7 `.gitignore`
+这样 `main.ts` 的 draw 阶段只保留调度，具体对象渲染逻辑集中管理。
 
-职责：避免把缓存和系统垃圾文件提交到仓库。
+### `web/src/systems/physics.ts`
 
-当前忽略：
+基础物理 helper：
 
-- `__pycache__/`
-- `*.pyc`
-- `.DS_Store`
+- `applyGravity`
+- `applyAirDrag`
+- `integrateBody`
 
----
+供 `applyFreeFlightPhysics` / `applyTetheredPhysics` 复用。
 
-## 7. 关键配置与本地存储
+### `web/src/systems/hooks.ts`
 
-### 游戏参数
+挂钩判定 helper：
 
-`game.js` 中的 `defaultCfg` 是物理和镜头默认配置。
+- `canTryAnchorHook`
+- `getAnchorHookHitRadius`
+- `canHookCandidate`
 
-调试面板修改后，点击“保存参数”会写入：
+减少 `main.ts` 中挂钩规则散落。
 
-- `swipe_debug_cfg_v2`
+### `web/src/systems/update_loop.ts`
 
-### 最高米数
+把主 `update(dt)` 的流程调度提炼成 `runMainUpdateStep(...)`：
 
-最高记录会写入：
+- pre-update（动画/轨道/特效）
+- 状态推进（drag/launch/tether）
+- 碰撞与死亡检查
+- 相机与生成覆盖
 
-- `swipe_best_meters_v1`
+`main.ts` 现在主要负责传入 world/cfg 与回调。
 
----
+### `web/src/systems/ui.ts`
 
-## 8. 小球视觉与果冻逻辑
+抽离 UI 细节：
 
-小球外观不是直接在 `game.js` 里画圆，而是：
+- `setTextStatus`
+- `syncPanelVisibility`
 
-1. `game.js` 计算：
-   - 位置
-   - 角度
-   - 速度
-   - 眼神方向
-   - 果冻形变强度
-2. 把这些值传给 `window.BallVisual.drawJellyBall(...)`
-3. `ball_visual.js` 根据这些值生成最终外观
+减少主入口文件的重复 DOM 操作代码。
 
-当前果冻逻辑特点：
+### `web/src/jelly_preview.ts`
 
-- 静止时尽量恢复稳定
-- 发射、挂钩、碰撞时会注入形变能量
-- 随时间衰减
+用于独立调果冻视觉与图层显示，便于美术/程序快速验证观感。
+
+### `web/src/map_preview.ts`
+
+用于独立预览地图/障碍生成分布，快速查看不同米数区间下的密度与可达性。
+
+### `web/dev_server.py`
+
+本地调参落盘服务：
+
+- 接口：`POST /__save_code_defaults`
+- 可将调参结果写回 `web/src/main.ts` 的 `defaultCfg` / `defaultHazardCfg`
+- 仅允许本机请求
 
 ---
 
-## 9. 死亡特效逻辑
+## 5. 关键配置与存储键
 
-死亡后不是立即结束，而是：
+主要 LocalStorage 键：
 
-1. 进入 `dying`
-2. 生成果汁爆裂粒子和污渍
-3. 粒子更新与落地生成污渍
-4. 特效播放完后进入 `gameover`
-
-配置来源：
-
-- 默认值在 `death_fx.js`
-- 使用逻辑在 `game.js`
-
----
-
-## 10. 对新开发者最重要的入口
-
-如果你要继续开发，建议按这个顺序看：
-
-1. `index.html`：了解页面结构
-2. `game.js` 顶部常量和 `defaultCfg`：了解参数系统
-3. `world` 状态对象：了解运行态数据
-4. `launchBall()` / `hookToAnchor()` / `applyTetheredPhysics()`：了解核心玩法
-5. `drawBall()`、`drawRubberBand()`、`drawDeathFx()`：了解视觉输出
-6. `ball_visual.js`：改小球外观
-7. `death_fx.js`：改死亡特效默认配置
+- `swipe_debug_cfg_v2`：主物理调参
+- `swipe_debug_default_cfg_v1`：主物理默认覆盖
+- `swipe_hazard_cfg_v1`：障碍调参
+- `swipe_hazard_default_cfg_v1`：障碍默认覆盖
+- `swipe_jelly_cfg_v1`：果冻调参
+- `swipe_jelly_layer_visibility_v1`：果冻图层可见性
+- `swipe_best_meters_v1`：最高米数
+- `swipe_tutorial_seen_v1`：新手引导状态
 
 ---
 
-## 11. 当前维护建议
+## 6. 扩展开发建议（正式开发向）
 
-- 想改手感：优先看 `game.js` 的 `defaultCfg`
-- 想改小球样子：看 `ball_visual.js`
-- 想改死亡炸开表现：看 `death_fx.js` + `game.js`
-- 想改界面排版：看 `index.html` + `style.css`
+1. 继续拆分 `main.ts`
+   - 建议拆到 `src/systems/*`（physics、camera、spawn、render、audio、ui）
+2. 引入统一配置层
+   - `src/config/defaults/*`，避免默认参数散落
+3. 资源目录统一
+   - `assets/audio`、`assets/images`、`assets/fx`，并建立资源清单
+4. 逐步去掉 `// @ts-nocheck`
+   - 先从低耦合模块开始补类型，最后回收到严格模式
 
-如果后面继续加功能，建议优先补：
+---
 
-- README
-- 更完整的游戏结束 UI
-- 音效 / 震动反馈
-- 关卡或程序化难度曲线
+## 7. 新同学快速上手路径
+
+1. 先看 `web/index.html` + `web/src/main.ts`
+2. 再看 `web/src/ball_visual.ts`（视觉）
+3. 用 `jelly_preview` / `map_preview` 两个页面调参数
+4. 确认参数后可通过 `dev_server.py` 回写默认值
+
+这样可以在最短路径内理解玩法、渲染和调参流程，并开始功能迭代。

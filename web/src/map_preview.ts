@@ -571,7 +571,7 @@ function drawLegend(x, y) {
   ctx.fill();
   ctx.stroke();
 
-  ctx.font = "11px sans-serif";
+  ctx.font = '11px "JYHPYY", sans-serif';
   ctx.textBaseline = "middle";
   for (let i = 0; i < items.length; i += 1) {
     const [label, color] = items[i];
@@ -615,7 +615,7 @@ function renderMap(result, viewportData, startMeter, endMeter, visibleMeters) {
 
     if (major) {
       ctx.fillStyle = "#bfdbfe";
-      ctx.font = "11px sans-serif";
+      ctx.font = '11px "JYHPYY", sans-serif';
       ctx.fillText(`${m}m`, 12, py + 4);
     }
   }
@@ -671,7 +671,7 @@ function renderMap(result, viewportData, startMeter, endMeter, visibleMeters) {
   ctx.fillStyle = "rgba(15, 23, 42, 0.62)";
   ctx.fillRect(padX, 6, 160, 20);
   ctx.fillStyle = "#e2e8f0";
-  ctx.font = "12px sans-serif";
+  ctx.font = '12px "JYHPYY", sans-serif';
   ctx.fillText(`视口：${startMeter.toFixed(1)}-${endMeter.toFixed(1)}m`, padX + 8, 20);
 
   drawLegend(width - 182, 16);

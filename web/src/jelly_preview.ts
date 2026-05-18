@@ -219,7 +219,7 @@ function drawLayerLabels(layers: Array<{ x: number; y: number; label: string }>)
   if (!showLabelsToggle.checked || !layers || layers.length === 0) return;
   ctx.save();
   ctx.textBaseline = "middle";
-  ctx.font = "12px sans-serif";
+  ctx.font = '12px "JYHPYY", sans-serif';
 
   for (let i = 0; i < layers.length; i += 1) {
     const layer = layers[i];

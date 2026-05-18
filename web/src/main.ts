@@ -242,6 +242,9 @@ const GAME_OVER_BUBBLES = [
   { nx: 0.86, ny: 0.72, r: 28, driftX: 10, driftY: 9, speed: 1.2, phase: 3.2 },
   { nx: 0.5, ny: 0.83, r: 32, driftX: 7, driftY: 12, speed: 0.75, phase: 2.8 },
 ];
+const GAME_OVER_OVERLAY_FADE_DURATION = 0.24;
+const GAME_OVER_PANEL_REVEAL_DURATION = 0.32;
+const GAME_OVER_TEXT_REVEAL_DURATION = 0.18;
 
 const defaultCfg = {
   gravity: 2060,
@@ -462,6 +465,7 @@ const world = {
   jellyPhase: 0,
   wallDizzyActive: false,
   timeSec: 0,
+  gameOverStartSec: -1,
   state: "aiming", // aiming | launched | tethered | dying | gameover
   dragging: false,
   pointerId: null,
@@ -1135,6 +1139,11 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
+function easeOutCubic(t) {
+  const x = clamp01(t);
+  return 1 - Math.pow(1 - x, 3);
+}
+
 function getAimJellyStretchRatio() {
   if (world.state !== "aiming" || !world.activeAnchor) return 0;
   const dx = world.ball.x - world.activeAnchor.x;
@@ -1777,6 +1786,7 @@ function resetRun() {
   world.jellyPhase = 0;
   world.wallDizzyActive = false;
   world.timeSec = 0;
+  world.gameOverStartSec = -1;
   world.redAnchorRespawns = [];
   world.state = "aiming";
   world.dragging = false;
@@ -2637,7 +2647,10 @@ function updateDeathFx(dt) {
   });
   if (!fx.active) {
     fx.active = false;
-    if (!fx.previewOnly) world.state = "gameover";
+    if (!fx.previewOnly) {
+      world.state = "gameover";
+      world.gameOverStartSec = world.timeSec;
+    }
   }
 }
 
@@ -3168,24 +3181,51 @@ function drawBreakFlash() {
 
 function drawGameOver() {
   if (world.state !== "gameover") return;
+  if (world.gameOverStartSec < 0) world.gameOverStartSec = world.timeSec;
   const centerX = world.w * 0.5;
   const panelW = Math.min(world.w * 0.78, 420);
   const panelH = Math.min(world.h * 0.34, 288);
   const panelX = centerX - panelW * 0.5;
   const panelY = world.h * 0.34;
+  const elapsed = Math.max(0, world.timeSec - world.gameOverStartSec);
+  const overlayT = easeOutCubic(clamp01(elapsed / GAME_OVER_OVERLAY_FADE_DURATION));
+  const panelT = clamp01(elapsed / GAME_OVER_PANEL_REVEAL_DURATION);
+  const panelScale = lerp(0.94, 1, easeOutCubic(panelT));
+  const panelRise = lerp(34, 0, easeOutCubic(panelT));
+  const panelAlpha = easeOutCubic(clamp01((elapsed - 0.02) / 0.22));
+  const animatedPanelCenterY = panelY + panelH * 0.5 + panelRise;
+  const animatedPanelY = animatedPanelCenterY - panelH * 0.5;
   const titleBarInset = 10;
   const titleBarX = panelX + titleBarInset;
-  const titleBarY = panelY + titleBarInset;
+  const titleBarY = animatedPanelY + titleBarInset;
   const titleBarW = panelW - titleBarInset * 2;
   const titleBarH = panelH * 0.32;
+  const titleReveal = easeOutCubic(clamp01((elapsed - 0.04) / GAME_OVER_TEXT_REVEAL_DURATION));
+  const score1Reveal = easeOutCubic(clamp01((elapsed - 0.1) / GAME_OVER_TEXT_REVEAL_DURATION));
+  const score2Reveal = easeOutCubic(clamp01((elapsed - 0.14) / GAME_OVER_TEXT_REVEAL_DURATION));
+  const dividerReveal = easeOutCubic(clamp01((elapsed - 0.12) / GAME_OVER_TEXT_REVEAL_DURATION));
+  const hintReveal = easeOutCubic(clamp01((elapsed - 0.18) / GAME_OVER_TEXT_REVEAL_DURATION));
 
   ctx.save();
   const overlay = ctx.createLinearGradient(0, 0, 0, world.h);
   overlay.addColorStop(0, "rgba(29, 67, 107, 0.22)");
   overlay.addColorStop(0.58, "rgba(30, 69, 112, 0.5)");
   overlay.addColorStop(1, "rgba(19, 44, 74, 0.7)");
+  ctx.globalAlpha = overlayT;
   ctx.fillStyle = overlay;
   ctx.fillRect(0, 0, world.w, world.h);
+  ctx.globalAlpha = 1;
+
+  const rippleT = clamp01(elapsed / 0.6);
+  if (rippleT < 1) {
+    const rippleRadius = lerp(panelW * 0.25, Math.max(world.w, world.h) * 0.7, easeOutCubic(rippleT));
+    const rippleAlpha = (1 - rippleT) * 0.26;
+    ctx.strokeStyle = `rgba(189, 227, 255, ${rippleAlpha})`;
+    ctx.lineWidth = lerp(12, 2, rippleT);
+    ctx.beginPath();
+    ctx.arc(centerX, animatedPanelCenterY, rippleRadius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   for (const bubble of GAME_OVER_BUBBLES) {
     const floatX = Math.sin(world.timeSec * bubble.speed + bubble.phase) * bubble.driftX;
@@ -3193,10 +3233,11 @@ function drawGameOver() {
     const x = world.w * bubble.nx + floatX;
     const y = world.h * bubble.ny + floatY;
     const radius = bubble.r * (1 + Math.sin(world.timeSec * (bubble.speed * 1.35) + bubble.phase) * 0.05);
+    const bubbleReveal = lerp(0.4, 1, overlayT);
 
     const ring = ctx.createRadialGradient(x, y, radius * 0.24, x, y, radius);
-    ring.addColorStop(0, "rgba(194, 224, 251, 0.95)");
-    ring.addColorStop(0.72, "rgba(157, 197, 233, 0.46)");
+    ring.addColorStop(0, `rgba(194, 224, 251, ${0.95 * bubbleReveal})`);
+    ring.addColorStop(0.72, `rgba(157, 197, 233, ${0.46 * bubbleReveal})`);
     ring.addColorStop(1, "rgba(157, 197, 233, 0)");
     ctx.fillStyle = ring;
     ctx.beginPath();
@@ -3216,8 +3257,14 @@ function drawGameOver() {
   ctx.shadowBlur = 28;
   ctx.shadowOffsetX = 0;
   ctx.shadowOffsetY = 10;
-  roundedRectPath(ctx, panelX, panelY, panelW, panelH, 34);
-  const panelGrad = ctx.createLinearGradient(0, panelY, 0, panelY + panelH);
+  ctx.save();
+  ctx.translate(centerX, animatedPanelCenterY);
+  ctx.scale(panelScale, panelScale);
+  ctx.translate(-centerX, -animatedPanelCenterY);
+  ctx.globalAlpha = panelAlpha;
+
+  roundedRectPath(ctx, panelX, animatedPanelY, panelW, panelH, 34);
+  const panelGrad = ctx.createLinearGradient(0, animatedPanelY, 0, animatedPanelY + panelH);
   panelGrad.addColorStop(0, "rgba(236, 250, 255, 0.9)");
   panelGrad.addColorStop(0.56, "rgba(195, 229, 255, 0.74)");
   panelGrad.addColorStop(1, "rgba(175, 209, 242, 0.74)");
@@ -3225,39 +3272,39 @@ function drawGameOver() {
   ctx.fill();
 
   ctx.save();
-  roundedRectPath(ctx, panelX, panelY, panelW, panelH, 34);
+  roundedRectPath(ctx, panelX, animatedPanelY, panelW, panelH, 34);
   ctx.clip();
   const warmGlow = ctx.createRadialGradient(
     panelX + panelW * 0.16,
-    panelY + panelH * 0.08,
+    animatedPanelY + panelH * 0.08,
     0,
     panelX + panelW * 0.16,
-    panelY + panelH * 0.08,
+    animatedPanelY + panelH * 0.08,
     panelW * 0.72,
   );
   warmGlow.addColorStop(0, "rgba(255, 182, 184, 0.28)");
   warmGlow.addColorStop(1, "rgba(255, 182, 184, 0)");
   ctx.fillStyle = warmGlow;
-  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.fillRect(panelX, animatedPanelY, panelW, panelH);
 
   const coolGlow = ctx.createRadialGradient(
     panelX + panelW * 0.84,
-    panelY + panelH * 0.1,
+    animatedPanelY + panelH * 0.1,
     0,
     panelX + panelW * 0.84,
-    panelY + panelH * 0.1,
+    animatedPanelY + panelH * 0.1,
     panelW * 0.68,
   );
   coolGlow.addColorStop(0, "rgba(146, 225, 255, 0.34)");
   coolGlow.addColorStop(1, "rgba(146, 225, 255, 0)");
   ctx.fillStyle = coolGlow;
-  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.fillRect(panelX, animatedPanelY, panelW, panelH);
   ctx.restore();
 
   ctx.shadowBlur = 0;
   ctx.strokeStyle = "rgba(255, 255, 255, 0.82)";
   ctx.lineWidth = 2;
-  roundedRectPath(ctx, panelX, panelY, panelW, panelH, 34);
+  roundedRectPath(ctx, panelX, animatedPanelY, panelW, panelH, 34);
   ctx.stroke();
 
   roundedRectPath(ctx, titleBarX, titleBarY, titleBarW, titleBarH, 24);
@@ -3287,7 +3334,8 @@ function drawGameOver() {
   ctx.fillStyle = titleGrad;
   ctx.font = uiFont(titleSize, 700);
   ctx.textAlign = "left";
-  const titleCenterY = titleBarY + titleBarH * 0.5 + Math.max(4, titleSize * 0.08);
+  const titleCenterY = titleBarY + titleBarH * 0.5 + Math.max(4, titleSize * 0.08) + (1 - titleReveal) * 11;
+  ctx.globalAlpha = Math.max(0.0001, titleReveal);
   fillTextOpticalCenter(ctx, "本局结束", centerX, titleCenterY);
 
   ctx.shadowBlur = 0;
@@ -3295,25 +3343,32 @@ function drawGameOver() {
   ctx.fillStyle = "rgba(232, 243, 252, 0.96)";
   ctx.font = uiFont(scoreSize, 650);
   ctx.textAlign = "center";
-  ctx.fillText(`本局 ${Math.round(world.runMeters)}m`, centerX, panelY + panelH * 0.56);
-  ctx.fillText(`最高 ${Math.round(world.bestMeters)}m`, centerX, panelY + panelH * 0.76);
+  const scoreBaseY = animatedPanelY + panelH * 0.56;
+  ctx.globalAlpha = Math.max(0.0001, score1Reveal);
+  ctx.fillText(`本局 ${Math.round(world.runMeters)}m`, centerX, scoreBaseY + (1 - score1Reveal) * 10);
+  ctx.globalAlpha = Math.max(0.0001, score2Reveal);
+  ctx.fillText(`最高 ${Math.round(world.bestMeters)}m`, centerX, animatedPanelY + panelH * 0.76 + (1 - score2Reveal) * 12);
 
   ctx.strokeStyle = "rgba(237, 246, 255, 0.55)";
   ctx.lineWidth = 1.4;
+  ctx.globalAlpha = Math.max(0.0001, dividerReveal);
   ctx.beginPath();
-  ctx.moveTo(centerX - panelW * 0.24, panelY + panelH * 0.66);
-  ctx.lineTo(centerX + panelW * 0.24, panelY + panelH * 0.66);
+  ctx.moveTo(centerX - panelW * 0.24, animatedPanelY + panelH * 0.66);
+  ctx.lineTo(centerX + panelW * 0.24, animatedPanelY + panelH * 0.66);
   ctx.stroke();
+  ctx.restore();
 
   const hintPulse = 0.5 + Math.sin(world.timeSec * 3.6) * 0.5;
-  const hintAlpha = lerp(0.32, 0.98, hintPulse);
+  const hintAlpha = lerp(0.2, 0.98, hintPulse) * hintReveal;
   const hintY = world.h * 0.9;
-  ctx.shadowColor = `rgba(151, 218, 255, ${0.18 + hintPulse * 0.34})`;
-  ctx.shadowBlur = 10 + hintPulse * 16;
+  ctx.shadowColor = `rgba(151, 218, 255, ${(0.18 + hintPulse * 0.34) * hintReveal})`;
+  ctx.shadowBlur = (10 + hintPulse * 16) * hintReveal;
   ctx.shadowOffsetY = 0;
   ctx.fillStyle = `rgba(236, 246, 255, ${hintAlpha})`;
   ctx.font = uiFont(hintSize, 600);
-  ctx.fillText("点击任意位置重新挑战", centerX, hintY);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("点击任意位置重新挑战", centerX, hintY + (1 - hintReveal) * 8);
   ctx.restore();
 }
 

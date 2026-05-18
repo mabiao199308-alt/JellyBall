@@ -129,12 +129,12 @@ body::after {
 
 .hud-meter {
   margin: 0;
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0.02em;
   color: #1b2944;
-  padding: 7px 14px;
+  padding: 5px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.95);
   background: linear-gradient(180deg, var(--chip-bg), rgba(255, 255, 255, 0.66));
@@ -485,8 +485,8 @@ body.hide-dev-controls .preview-entry {
   }
 
   .hud-meter {
-    font-size: 23px;
-    padding: 7px 12px;
+    font-size: 19px;
+    padding: 5px 9px;
   }
 }
 
@@ -505,7 +505,7 @@ body.hide-dev-controls .preview-entry {
   }
 
   .hud-meter {
-    font-size: 19px;
-    padding: 6px 11px;
+    font-size: 15px;
+    padding: 4px 8px;
   }
 }

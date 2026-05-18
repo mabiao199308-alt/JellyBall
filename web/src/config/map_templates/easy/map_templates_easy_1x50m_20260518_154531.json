@@ -1,0 +1,421 @@
+{
+  "schema": "jellyball.map-template-library.v1",
+  "generatedAt": "2026-05-18T07:45:30.123Z",
+  "unitMeters": 50,
+  "templateCount": 1,
+  "totalMeters": 50,
+  "activeDifficultyLevel": "easy",
+  "world": {
+    "width": 390,
+    "height": 844,
+    "startY": 633,
+    "pxPerMeter": 100
+  },
+  "difficulty": {
+    "active": {
+      "anchor": {
+        "spacingMin": 108,
+        "spacingMax": 170,
+        "spacingDifficultyStartMeters": 45,
+        "spacingDifficultyFullMeters": 230,
+        "spacingBonusMin": 14,
+        "spacingBonusMax": 48,
+        "redChanceStart": 0.2,
+        "redChanceEnd": 0.36,
+        "redChanceFullMeters": 220,
+        "firstBlueAnchorCount": 8
+      },
+      "hazard": {
+        "baseTrackUnlockMeters": 28,
+        "gearUnlockMeters": 62,
+        "damageTrackUnlockMeters": 100,
+        "baseTrackSlotInterval": 4,
+        "baseTrackSpawnChance": 0.35,
+        "baseTrackSpawnChanceMax": 0.68,
+        "damageTrackSlotInterval": 5,
+        "damageTrackSpawnChance": 0.22,
+        "damageTrackSpawnChanceMax": 0.56,
+        "gearSlotInterval": 4,
+        "gearSpawnChance": 0.34,
+        "gearSpawnChanceMax": 0.62,
+        "hazardDensityStartMeters": 96,
+        "hazardDensityFullMeters": 300
+      }
+    },
+    "profiles": {
+      "easy": {
+        "anchor": {
+          "spacingMin": 108,
+          "spacingMax": 170,
+          "spacingDifficultyStartMeters": 45,
+          "spacingDifficultyFullMeters": 230,
+          "spacingBonusMin": 14,
+          "spacingBonusMax": 48,
+          "redChanceStart": 0.2,
+          "redChanceEnd": 0.36,
+          "redChanceFullMeters": 220,
+          "firstBlueAnchorCount": 8
+        },
+        "hazard": {
+          "baseTrackUnlockMeters": 28,
+          "gearUnlockMeters": 62,
+          "damageTrackUnlockMeters": 100,
+          "baseTrackSlotInterval": 4,
+          "baseTrackSpawnChance": 0.35,
+          "baseTrackSpawnChanceMax": 0.68,
+          "damageTrackSlotInterval": 5,
+          "damageTrackSpawnChance": 0.22,
+          "damageTrackSpawnChanceMax": 0.56,
+          "gearSlotInterval": 4,
+          "gearSpawnChance": 0.34,
+          "gearSpawnChanceMax": 0.62,
+          "hazardDensityStartMeters": 96,
+          "hazardDensityFullMeters": 300
+        }
+      },
+      "normal": {
+        "anchor": {
+          "spacingMin": 120,
+          "spacingMax": 185,
+          "spacingDifficultyStartMeters": 30,
+          "spacingDifficultyFullMeters": 160,
+          "spacingBonusMin": 26,
+          "spacingBonusMax": 78,
+          "redChanceStart": 0.3333333333333333,
+          "redChanceEnd": 0.5,
+          "redChanceFullMeters": 160,
+          "firstBlueAnchorCount": 5
+        },
+        "hazard": {
+          "baseTrackUnlockMeters": 22,
+          "gearUnlockMeters": 47,
+          "damageTrackUnlockMeters": 80,
+          "baseTrackSlotInterval": 3,
+          "baseTrackSpawnChance": 0.52,
+          "baseTrackSpawnChanceMax": 0.86,
+          "damageTrackSlotInterval": 4,
+          "damageTrackSpawnChance": 0.4,
+          "damageTrackSpawnChanceMax": 0.74,
+          "gearSlotInterval": 3,
+          "gearSpawnChance": 0.55,
+          "gearSpawnChanceMax": 0.85,
+          "hazardDensityStartMeters": 80,
+          "hazardDensityFullMeters": 260
+        }
+      },
+      "hard": {
+        "anchor": {
+          "spacingMin": 132,
+          "spacingMax": 208,
+          "spacingDifficultyStartMeters": 14,
+          "spacingDifficultyFullMeters": 95,
+          "spacingBonusMin": 36,
+          "spacingBonusMax": 108,
+          "redChanceStart": 0.38,
+          "redChanceEnd": 0.62,
+          "redChanceFullMeters": 110,
+          "firstBlueAnchorCount": 3
+        },
+        "hazard": {
+          "baseTrackUnlockMeters": 14,
+          "gearUnlockMeters": 32,
+          "damageTrackUnlockMeters": 58,
+          "baseTrackSlotInterval": 2,
+          "baseTrackSpawnChance": 0.68,
+          "baseTrackSpawnChanceMax": 0.94,
+          "damageTrackSlotInterval": 3,
+          "damageTrackSpawnChance": 0.5,
+          "damageTrackSpawnChanceMax": 0.88,
+          "gearSlotInterval": 2,
+          "gearSpawnChance": 0.72,
+          "gearSpawnChanceMax": 0.95,
+          "hazardDensityStartMeters": 32,
+          "hazardDensityFullMeters": 140
+        }
+      }
+    }
+  },
+  "summary": {
+    "anchors": 35,
+    "redAnchors": 5,
+    "gears": 0,
+    "tracks": 1,
+    "pinTracks": 1,
+    "damageTracks": 0
+  },
+  "templates": [
+    {
+      "id": "tpl_001",
+      "index": 0,
+      "startMeter": 0,
+      "endMeter": 50,
+      "lengthMeters": 50,
+      "anchors": [
+        {
+          "x": 195,
+          "y": 633,
+          "meter": 0,
+          "localMeter": 0,
+          "isRed": false
+        },
+        {
+          "x": 314.93,
+          "y": 494.86,
+          "meter": 1.381,
+          "localMeter": 1.381,
+          "isRed": false
+        },
+        {
+          "x": 212.83,
+          "y": 363.93,
+          "meter": 2.691,
+          "localMeter": 2.691,
+          "isRed": false
+        },
+        {
+          "x": 320,
+          "y": 230.96,
+          "meter": 4.02,
+          "localMeter": 4.02,
+          "isRed": false
+        },
+        {
+          "x": 187.91,
+          "y": 105.9,
+          "meter": 5.271,
+          "localMeter": 5.271,
+          "isRed": false
+        },
+        {
+          "x": 249.85,
+          "y": -52.29,
+          "meter": 6.853,
+          "localMeter": 6.853,
+          "isRed": false
+        },
+        {
+          "x": 315.56,
+          "y": -162.28,
+          "meter": 7.953,
+          "localMeter": 7.953,
+          "isRed": false
+        },
+        {
+          "x": 177.13,
+          "y": -324.32,
+          "meter": 9.573,
+          "localMeter": 9.573,
+          "isRed": false
+        },
+        {
+          "x": 250.74,
+          "y": -481.8,
+          "meter": 11.148,
+          "localMeter": 11.148,
+          "isRed": false
+        },
+        {
+          "x": 115.96,
+          "y": -635.92,
+          "meter": 12.689,
+          "localMeter": 12.689,
+          "isRed": false
+        },
+        {
+          "x": 186.63,
+          "y": -775.72,
+          "meter": 14.087,
+          "localMeter": 14.087,
+          "isRed": false
+        },
+        {
+          "x": 293.4,
+          "y": -901.35,
+          "meter": 15.343,
+          "localMeter": 15.343,
+          "isRed": false
+        },
+        {
+          "x": 199.27,
+          "y": -1046.21,
+          "meter": 16.792,
+          "localMeter": 16.792,
+          "isRed": false
+        },
+        {
+          "x": 320,
+          "y": -1181.8,
+          "meter": 18.148,
+          "localMeter": 18.148,
+          "isRed": false
+        },
+        {
+          "x": 191.22,
+          "y": -1310.78,
+          "meter": 19.438,
+          "localMeter": 19.438,
+          "isRed": true
+        },
+        {
+          "x": 253.89,
+          "y": -1451.19,
+          "meter": 20.842,
+          "localMeter": 20.842,
+          "isRed": false
+        },
+        {
+          "x": 320,
+          "y": -1588.29,
+          "meter": 22.213,
+          "localMeter": 22.213,
+          "isRed": false
+        },
+        {
+          "x": 212.54,
+          "y": -1715.43,
+          "meter": 23.484,
+          "localMeter": 23.484,
+          "isRed": true
+        },
+        {
+          "x": 298.35,
+          "y": -1877.97,
+          "meter": 25.11,
+          "localMeter": 25.11,
+          "isRed": false
+        },
+        {
+          "x": 215.27,
+          "y": -2023.95,
+          "meter": 26.569,
+          "localMeter": 26.569,
+          "isRed": false
+        },
+        {
+          "x": 195,
+          "y": -2328.34,
+          "meter": 29.613,
+          "localMeter": 29.613,
+          "isRed": false
+        },
+        {
+          "x": 305.82,
+          "y": -2473.06,
+          "meter": 31.061,
+          "localMeter": 31.061,
+          "isRed": true
+        },
+        {
+          "x": 204.15,
+          "y": -2603.77,
+          "meter": 32.368,
+          "localMeter": 32.368,
+          "isRed": false
+        },
+        {
+          "x": 312.03,
+          "y": -2747.63,
+          "meter": 33.806,
+          "localMeter": 33.806,
+          "isRed": false
+        },
+        {
+          "x": 178.86,
+          "y": -2880.1,
+          "meter": 35.131,
+          "localMeter": 35.131,
+          "isRed": false
+        },
+        {
+          "x": 243.93,
+          "y": -3036.72,
+          "meter": 36.697,
+          "localMeter": 36.697,
+          "isRed": false
+        },
+        {
+          "x": 320,
+          "y": -3198.49,
+          "meter": 38.315,
+          "localMeter": 38.315,
+          "isRed": false
+        },
+        {
+          "x": 196.07,
+          "y": -3326.42,
+          "meter": 39.594,
+          "localMeter": 39.594,
+          "isRed": false
+        },
+        {
+          "x": 310.04,
+          "y": -3476.15,
+          "meter": 41.091,
+          "localMeter": 41.091,
+          "isRed": false
+        },
+        {
+          "x": 202.08,
+          "y": -3585.52,
+          "meter": 42.185,
+          "localMeter": 42.185,
+          "isRed": false
+        },
+        {
+          "x": 269.79,
+          "y": -3717.95,
+          "meter": 43.509,
+          "localMeter": 43.509,
+          "isRed": false
+        },
+        {
+          "x": 132.43,
+          "y": -3829.92,
+          "meter": 44.629,
+          "localMeter": 44.629,
+          "isRed": false
+        },
+        {
+          "x": 216.06,
+          "y": -3940.69,
+          "meter": 45.737,
+          "localMeter": 45.737,
+          "isRed": true
+        },
+        {
+          "x": 318.61,
+          "y": -4087.16,
+          "meter": 47.202,
+          "localMeter": 47.202,
+          "isRed": false
+        },
+        {
+          "x": 179.38,
+          "y": -4214.3,
+          "meter": 48.473,
+          "localMeter": 48.473,
+          "isRed": true
+        }
+      ],
+      "gears": [],
+      "tracks": [
+        {
+          "x": 195,
+          "y": -2175.33,
+          "mode": "pin",
+          "isRed": false,
+          "meter": 28.083,
+          "localMeter": 28.083
+        }
+      ],
+      "summary": {
+        "anchors": 35,
+        "redAnchors": 5,
+        "gears": 0,
+        "tracks": 1,
+        "pinTracks": 1,
+        "damageTracks": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>地图模版库</title>
+    <link rel="stylesheet" href="./map_preview.css" />
+  </head>
+  <body>
+    <main class="preview-page">
+      <header class="toolbar">
+        <h1>地图模版库（50m/段）</h1>
+        <div class="toolbar__controls">
+          <button id="difficultyPanelBtn" type="button">难度配置</button>
+          <label>
+            难度选择
+            <select id="difficultyActiveSelect"></select>
+          </label>
+          <button id="generateTemplatesBtn" type="button">随机生成</button>
+          <button id="loadPreviewTemplatesBtn" type="button">Load预览库模板</button>
+          <button id="downloadTemplatesBtn" type="button" disabled>保存JSON</button>
+        </div>
+        <p class="toolbar__tips">按当前难度配置随机生成固定 1 段（50m）模版，点击保存导出 JSON。</p>
+        <p class="toolbar__tips" id="templateStatus">模版库尚未生成。</p>
+
+        <section id="difficultyPanel" class="difficulty-panel is-hidden" aria-hidden="true">
+          <div class="difficulty-panel__head">
+            <h2>难度配置</h2>
+            <button id="difficultyPanelCloseBtn" type="button">关闭</button>
+          </div>
+
+          <div class="difficulty-panel__controls">
+            <label class="template-support">
+              编辑档位
+              <select id="difficultyEditSelect"></select>
+            </label>
+            <button id="difficultyUseEditedBtn" class="template-support" type="button">使用编辑档位预览</button>
+            <button id="difficultyResetLevelBtn" class="template-support" type="button">重置当前档位</button>
+            <button id="difficultyResetAllBtn" class="template-support" type="button">重置全部档位</button>
+          </div>
+
+          <div class="difficulty-panel__tips">锚点参数控制跳跃节奏；障碍参数控制出现比例；曲线参数控制随米数的增压速度。</div>
+          <div id="difficultyFields" class="difficulty-fields"></div>
+        </section>
+
+        <section class="template-support">
+          <input id="templateCountInput" type="number" min="1" max="1" step="1" value="1" />
+          <input id="metersInput" type="number" min="50" max="1000" step="10" value="50" />
+          <input id="visibleMetersInput" type="number" min="10" max="200" step="1" value="50" />
+          <input id="viewportInput" type="number" min="0" max="0" step="0.1" value="0" />
+          <input id="scrollRange" class="scroll-range" type="range" min="0" max="0" step="0.1" value="0" />
+          <button id="prevScreenBtn" type="button">上一屏</button>
+          <button id="nextScreenBtn" type="button">下一屏</button>
+          <button id="generateBtn" type="button">生成预览</button>
+          <button id="regenBtn" type="button">重随机</button>
+        </section>
+      </header>
+
+      <section class="stats" id="statsPanel"></section>
+      <section class="canvas-wrap">
+        <canvas id="previewCanvas" width="390" height="844"></canvas>
+      </section>
+    </main>
+
+    <script type="module" src="/src/map_editor/index.ts"></script>
+  </body>
+</html>

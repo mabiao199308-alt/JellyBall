@@ -144,6 +144,152 @@ body::after {
   animation: meterFloat 2.8s ease-in-out infinite;
 }
 
+.start-menu-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
+  background: linear-gradient(180deg, rgba(232, 247, 255, 0.62), rgba(212, 238, 252, 0.8));
+  backdrop-filter: blur(4px);
+  transition: opacity 0.24s ease;
+}
+
+.start-menu-overlay.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.start-menu-card {
+  width: min(92%, 360px);
+  padding: 18px 16px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(241, 250, 255, 0.9));
+  box-shadow: 0 14px 34px rgba(62, 112, 143, 0.24);
+}
+
+.start-menu-title {
+  margin: 0;
+  text-align: center;
+  font-size: 26px;
+  color: #1f2b40;
+  letter-spacing: 0.04em;
+}
+
+.start-menu-subtitle {
+  margin: 8px 0 14px;
+  text-align: center;
+  font-size: 14px;
+  color: rgba(39, 70, 105, 0.8);
+}
+
+.start-menu-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.start-menu-actions.is-hidden {
+  display: none;
+}
+
+.start-menu-btn {
+  border: 1px solid rgba(255, 255, 255, 0.88);
+  border-radius: 14px;
+  padding: 11px 12px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1f2b40;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(226, 245, 255, 0.92));
+  box-shadow: 0 8px 20px rgba(73, 119, 151, 0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.start-menu-btn--random {
+  background: linear-gradient(180deg, rgba(255, 248, 236, 0.98), rgba(255, 223, 188, 0.92));
+}
+
+.start-menu-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(73, 119, 151, 0.24);
+}
+
+.start-menu-btn:active {
+  transform: translateY(1px);
+}
+
+.start-level-panel {
+  margin-top: 12px;
+}
+
+.start-level-panel.is-hidden {
+  display: none;
+}
+
+.start-level-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: rgba(36, 62, 92, 0.9);
+}
+
+.start-level-back {
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f2b40;
+  background: linear-gradient(180deg, #ffffff, #e8f7ff);
+}
+
+.start-level-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.start-level-empty {
+  margin: 2px 0;
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(41, 72, 108, 0.7);
+}
+
+.start-level-btn {
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 12px;
+  padding: 8px 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1f2b40;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(216, 241, 255, 0.92));
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.start-level-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(73, 119, 151, 0.2);
+}
+
+.start-level-btn:active {
+  transform: translateY(1px);
+}
+
+.start-level-btn.is-selected {
+  color: #12263a;
+  background: linear-gradient(180deg, rgba(255, 242, 214, 0.98), rgba(255, 212, 161, 0.95));
+  box-shadow: 0 7px 16px rgba(171, 106, 51, 0.25);
+}
+
 .tutorial-overlay {
   position: absolute;
   inset: 0;
@@ -507,5 +653,20 @@ body.hide-dev-controls .preview-entry {
   .hud-meter {
     font-size: 15px;
     padding: 4px 8px;
+  }
+
+  .start-menu-card {
+    width: min(94%, 340px);
+    padding: 16px 14px 14px;
+    border-radius: 16px;
+  }
+
+  .start-menu-title {
+    font-size: 22px;
+  }
+
+  .start-menu-btn {
+    font-size: 16px;
+    padding: 10px 12px;
   }
 }

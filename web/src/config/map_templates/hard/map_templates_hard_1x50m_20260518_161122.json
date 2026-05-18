@@ -1,0 +1,374 @@
+{
+  "schema": "jellyball.map-template-library.v1",
+  "generatedAt": "2026-05-18T08:11:21.690Z",
+  "unitMeters": 50,
+  "templateCount": 1,
+  "totalMeters": 50,
+  "activeDifficultyLevel": "hard",
+  "world": {
+    "width": 390,
+    "height": 844,
+    "startY": 633,
+    "pxPerMeter": 100
+  },
+  "difficulty": {
+    "active": {
+      "anchor": {
+        "spacingMin": 132,
+        "spacingMax": 208,
+        "spacingDifficultyStartMeters": 14,
+        "spacingDifficultyFullMeters": 95,
+        "spacingBonusMin": 36,
+        "spacingBonusMax": 108,
+        "redChanceStart": 0.38,
+        "redChanceEnd": 0.62,
+        "redChanceFullMeters": 110,
+        "firstBlueAnchorCount": 3
+      },
+      "hazard": {
+        "baseTrackUnlockMeters": 14,
+        "gearUnlockMeters": 32,
+        "damageTrackUnlockMeters": 58,
+        "baseTrackSlotInterval": 2,
+        "baseTrackSpawnChance": 0.68,
+        "baseTrackSpawnChanceMax": 0.94,
+        "damageTrackSlotInterval": 3,
+        "damageTrackSpawnChance": 0.5,
+        "damageTrackSpawnChanceMax": 0.88,
+        "gearSlotInterval": 2,
+        "gearSpawnChance": 0.72,
+        "gearSpawnChanceMax": 0.95,
+        "hazardDensityStartMeters": 32,
+        "hazardDensityFullMeters": 140
+      }
+    },
+    "profiles": {
+      "easy": {
+        "anchor": {
+          "spacingMin": 108,
+          "spacingMax": 170,
+          "spacingDifficultyStartMeters": 45,
+          "spacingDifficultyFullMeters": 230,
+          "spacingBonusMin": 14,
+          "spacingBonusMax": 48,
+          "redChanceStart": 0.2,
+          "redChanceEnd": 0.36,
+          "redChanceFullMeters": 220,
+          "firstBlueAnchorCount": 8
+        },
+        "hazard": {
+          "baseTrackUnlockMeters": 28,
+          "gearUnlockMeters": 62,
+          "damageTrackUnlockMeters": 100,
+          "baseTrackSlotInterval": 4,
+          "baseTrackSpawnChance": 0.35,
+          "baseTrackSpawnChanceMax": 0.68,
+          "damageTrackSlotInterval": 5,
+          "damageTrackSpawnChance": 0.22,
+          "damageTrackSpawnChanceMax": 0.56,
+          "gearSlotInterval": 4,
+          "gearSpawnChance": 0.34,
+          "gearSpawnChanceMax": 0.62,
+          "hazardDensityStartMeters": 96,
+          "hazardDensityFullMeters": 300
+        }
+      },
+      "normal": {
+        "anchor": {
+          "spacingMin": 120,
+          "spacingMax": 185,
+          "spacingDifficultyStartMeters": 30,
+          "spacingDifficultyFullMeters": 160,
+          "spacingBonusMin": 26,
+          "spacingBonusMax": 78,
+          "redChanceStart": 0.3333333333333333,
+          "redChanceEnd": 0.5,
+          "redChanceFullMeters": 160,
+          "firstBlueAnchorCount": 5
+        },
+        "hazard": {
+          "baseTrackUnlockMeters": 22,
+          "gearUnlockMeters": 47,
+          "damageTrackUnlockMeters": 80,
+          "baseTrackSlotInterval": 3,
+          "baseTrackSpawnChance": 0.52,
+          "baseTrackSpawnChanceMax": 0.86,
+          "damageTrackSlotInterval": 4,
+          "damageTrackSpawnChance": 0.4,
+          "damageTrackSpawnChanceMax": 0.74,
+          "gearSlotInterval": 3,
+          "gearSpawnChance": 0.55,
+          "gearSpawnChanceMax": 0.85,
+          "hazardDensityStartMeters": 80,
+          "hazardDensityFullMeters": 260
+        }
+      },
+      "hard": {
+        "anchor": {
+          "spacingMin": 132,
+          "spacingMax": 208,
+          "spacingDifficultyStartMeters": 14,
+          "spacingDifficultyFullMeters": 95,
+          "spacingBonusMin": 36,
+          "spacingBonusMax": 108,
+          "redChanceStart": 0.38,
+          "redChanceEnd": 0.62,
+          "redChanceFullMeters": 110,
+          "firstBlueAnchorCount": 3
+        },
+        "hazard": {
+          "baseTrackUnlockMeters": 14,
+          "gearUnlockMeters": 32,
+          "damageTrackUnlockMeters": 58,
+          "baseTrackSlotInterval": 2,
+          "baseTrackSpawnChance": 0.68,
+          "baseTrackSpawnChanceMax": 0.94,
+          "damageTrackSlotInterval": 3,
+          "damageTrackSpawnChance": 0.5,
+          "damageTrackSpawnChanceMax": 0.88,
+          "gearSlotInterval": 2,
+          "gearSpawnChance": 0.72,
+          "gearSpawnChanceMax": 0.95,
+          "hazardDensityStartMeters": 32,
+          "hazardDensityFullMeters": 140
+        }
+      }
+    }
+  },
+  "summary": {
+    "anchors": 25,
+    "redAnchors": 10,
+    "gears": 2,
+    "tracks": 2,
+    "pinTracks": 2,
+    "damageTracks": 0
+  },
+  "templates": [
+    {
+      "id": "tpl_001",
+      "index": 0,
+      "startMeter": 0,
+      "endMeter": 50,
+      "lengthMeters": 50,
+      "anchors": [
+        {
+          "x": 195,
+          "y": 633,
+          "meter": 0,
+          "localMeter": 0,
+          "isRed": false
+        },
+        {
+          "x": 272.22,
+          "y": 468.87,
+          "meter": 1.641,
+          "localMeter": 1.641,
+          "isRed": false
+        },
+        {
+          "x": 150.32,
+          "y": 312.2,
+          "meter": 3.208,
+          "localMeter": 3.208,
+          "isRed": false
+        },
+        {
+          "x": 262.39,
+          "y": 136.47,
+          "meter": 4.965,
+          "localMeter": 4.965,
+          "isRed": false
+        },
+        {
+          "x": 149.1,
+          "y": -25.29,
+          "meter": 6.583,
+          "localMeter": 6.583,
+          "isRed": true
+        },
+        {
+          "x": 210.88,
+          "y": -216.9,
+          "meter": 8.499,
+          "localMeter": 8.499,
+          "isRed": false
+        },
+        {
+          "x": 320,
+          "y": -415.47,
+          "meter": 10.485,
+          "localMeter": 10.485,
+          "isRed": false
+        },
+        {
+          "x": 202.26,
+          "y": -554.09,
+          "meter": 11.871,
+          "localMeter": 11.871,
+          "isRed": false
+        },
+        {
+          "x": 266.44,
+          "y": -707.08,
+          "meter": 13.401,
+          "localMeter": 13.401,
+          "isRed": true
+        },
+        {
+          "x": 133.87,
+          "y": -914.43,
+          "meter": 15.474,
+          "localMeter": 15.474,
+          "isRed": true
+        },
+        {
+          "x": 209.64,
+          "y": -1279.83,
+          "meter": 19.128,
+          "localMeter": 19.128,
+          "isRed": false
+        },
+        {
+          "x": 320,
+          "y": -1448.85,
+          "meter": 20.819,
+          "localMeter": 20.819,
+          "isRed": false
+        },
+        {
+          "x": 201.47,
+          "y": -1634.9,
+          "meter": 22.679,
+          "localMeter": 22.679,
+          "isRed": true
+        },
+        {
+          "x": 266.84,
+          "y": -1850.83,
+          "meter": 24.838,
+          "localMeter": 24.838,
+          "isRed": true
+        },
+        {
+          "x": 157.51,
+          "y": -2040.26,
+          "meter": 26.733,
+          "localMeter": 26.733,
+          "isRed": false
+        },
+        {
+          "x": 238.93,
+          "y": -2211.68,
+          "meter": 28.447,
+          "localMeter": 28.447,
+          "isRed": false
+        },
+        {
+          "x": 308.22,
+          "y": -2372.2,
+          "meter": 30.052,
+          "localMeter": 30.052,
+          "isRed": true
+        },
+        {
+          "x": 178.85,
+          "y": -2573.44,
+          "meter": 32.064,
+          "localMeter": 32.064,
+          "isRed": false
+        },
+        {
+          "x": 251.19,
+          "y": -2781.39,
+          "meter": 34.144,
+          "localMeter": 34.144,
+          "isRed": false
+        },
+        {
+          "x": 124.89,
+          "y": -2950.76,
+          "meter": 35.838,
+          "localMeter": 35.838,
+          "isRed": false
+        },
+        {
+          "x": 71.29,
+          "y": -3374.39,
+          "meter": 40.074,
+          "localMeter": 40.074,
+          "isRed": true
+        },
+        {
+          "x": 146.55,
+          "y": -3539.25,
+          "meter": 41.722,
+          "localMeter": 41.722,
+          "isRed": true
+        },
+        {
+          "x": 261.61,
+          "y": -3767.71,
+          "meter": 44.007,
+          "localMeter": 44.007,
+          "isRed": true
+        },
+        {
+          "x": 140.79,
+          "y": -3943.47,
+          "meter": 45.765,
+          "localMeter": 45.765,
+          "isRed": false
+        },
+        {
+          "x": 250.39,
+          "y": -4208.75,
+          "meter": 48.418,
+          "localMeter": 48.418,
+          "isRed": true
+        }
+      ],
+      "gears": [
+        {
+          "x": 273.11,
+          "y": -3332.51,
+          "radius": 40.95,
+          "meter": 39.655,
+          "localMeter": 39.655
+        },
+        {
+          "x": 119.6,
+          "y": -4154.48,
+          "radius": 40.95,
+          "meter": 47.875,
+          "localMeter": 47.875
+        }
+      ],
+      "tracks": [
+        {
+          "x": 255.1,
+          "y": -1091.34,
+          "mode": "pin",
+          "isRed": true,
+          "meter": 17.243,
+          "localMeter": 17.243
+        },
+        {
+          "x": 134.9,
+          "y": -3095.97,
+          "mode": "pin",
+          "isRed": true,
+          "meter": 37.29,
+          "localMeter": 37.29
+        }
+      ],
+      "summary": {
+        "anchors": 25,
+        "redAnchors": 10,
+        "gears": 2,
+        "tracks": 2,
+        "pinTracks": 2,
+        "damageTracks": 0
+      }
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "activeDifficultyLevel": "normal",
+  "profiles": {
+    "easy": {
+      "anchor": {
+        "spacingMin": 108,
+        "spacingMax": 170,
+        "spacingDifficultyStartMeters": 45,
+        "spacingDifficultyFullMeters": 230,
+        "spacingBonusMin": 14,
+        "spacingBonusMax": 48,
+        "redChanceStart": 0.2,
+        "redChanceEnd": 0.36,
+        "redChanceFullMeters": 220,
+        "firstBlueAnchorCount": 8
+      },
+      "hazard": {
+        "baseTrackUnlockMeters": 28,
+        "gearUnlockMeters": 62,
+        "damageTrackUnlockMeters": 100,
+        "baseTrackSlotInterval": 4,
+        "baseTrackSpawnChance": 0.35,
+        "baseTrackSpawnChanceMax": 0.68,
+        "damageTrackSlotInterval": 5,
+        "damageTrackSpawnChance": 0.22,
+        "damageTrackSpawnChanceMax": 0.56,
+        "gearSlotInterval": 4,
+        "gearSpawnChance": 0.34,
+        "gearSpawnChanceMax": 0.62,
+        "hazardDensityStartMeters": 96,
+        "hazardDensityFullMeters": 300
+      }
+    },
+    "normal": {
+      "anchor": {
+        "spacingMin": 120,
+        "spacingMax": 185,
+        "spacingDifficultyStartMeters": 30,
+        "spacingDifficultyFullMeters": 160,
+        "spacingBonusMin": 26,
+        "spacingBonusMax": 78,
+        "redChanceStart": 0.3333333333333333,
+        "redChanceEnd": 0.5,
+        "redChanceFullMeters": 160,
+        "firstBlueAnchorCount": 5
+      },
+      "hazard": {
+        "baseTrackUnlockMeters": 22,
+        "gearUnlockMeters": 47,
+        "damageTrackUnlockMeters": 80,
+        "baseTrackSlotInterval": 3,
+        "baseTrackSpawnChance": 0.52,
+        "baseTrackSpawnChanceMax": 0.86,
+        "damageTrackSlotInterval": 4,
+        "damageTrackSpawnChance": 0.4,
+        "damageTrackSpawnChanceMax": 0.74,
+        "gearSlotInterval": 3,
+        "gearSpawnChance": 0.55,
+        "gearSpawnChanceMax": 0.85,
+        "hazardDensityStartMeters": 80,
+        "hazardDensityFullMeters": 260
+      }
+    },
+    "hard": {
+      "anchor": {
+        "spacingMin": 132,
+        "spacingMax": 208,
+        "spacingDifficultyStartMeters": 14,
+        "spacingDifficultyFullMeters": 95,
+        "spacingBonusMin": 36,
+        "spacingBonusMax": 108,
+        "redChanceStart": 0.38,
+        "redChanceEnd": 0.62,
+        "redChanceFullMeters": 110,
+        "firstBlueAnchorCount": 3
+      },
+      "hazard": {
+        "baseTrackUnlockMeters": 14,
+        "gearUnlockMeters": 32,
+        "damageTrackUnlockMeters": 58,
+        "baseTrackSlotInterval": 2,
+        "baseTrackSpawnChance": 0.68,
+        "baseTrackSpawnChanceMax": 0.94,
+        "damageTrackSlotInterval": 3,
+        "damageTrackSpawnChance": 0.5,
+        "damageTrackSpawnChanceMax": 0.88,
+        "gearSlotInterval": 2,
+        "gearSpawnChance": 0.72,
+        "gearSpawnChanceMax": 0.95,
+        "hazardDensityStartMeters": 32,
+        "hazardDensityFullMeters": 140
+      }
+    }
+  }
+}

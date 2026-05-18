@@ -5,6 +5,8 @@ export const JELLY_CFG_STORAGE_KEY = "swipe_jelly_cfg_v1";
 export const JELLY_LAYER_VISIBILITY_KEY = "swipe_jelly_layer_visibility_v1";
 export const HAZARD_CFG_STORAGE_KEY = "swipe_hazard_cfg_v1";
 export const HAZARD_DEFAULT_OVERRIDE_KEY = "swipe_hazard_default_cfg_v1";
+export const MAP_EDITOR_DIFFICULTY_STORAGE_KEY = "swipe_map_difficulty_cfg_v1";
+export const MAP_EDITOR_SEGMENT_DIFFICULTY_STORAGE_KEY = "swipe_map_segment_difficulty_v1";
 export const TUTORIAL_SEEN_STORAGE_KEY = "swipe_tutorial_seen_v1";
 
 export const CODE_DEFAULT_SAVE_ENDPOINT = "/__save_code_defaults";

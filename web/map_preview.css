@@ -33,9 +33,23 @@ body {
   background: rgba(15, 23, 42, 0.8);
 }
 
+.toolbar__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .toolbar h1 {
   margin: 0 0 10px;
   font-size: 20px;
+}
+
+.toolbar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .toolbar__controls {
@@ -53,7 +67,9 @@ body {
 }
 
 .toolbar input,
-.toolbar button {
+.toolbar select,
+.toolbar button,
+.toolbar__switch-link {
   border-radius: 10px;
   border: 1px solid rgba(148, 163, 184, 0.45);
   background: rgba(30, 41, 59, 0.9);
@@ -62,9 +78,144 @@ body {
   font-size: 14px;
 }
 
-.toolbar button {
+.toolbar button,
+.toolbar__switch-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
   cursor: pointer;
   font-weight: 700;
+}
+
+.toolbar button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.difficulty-panel {
+  margin-top: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(2, 6, 23, 0.8);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.difficulty-panel.is-hidden {
+  display: none;
+}
+
+.difficulty-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.difficulty-panel__head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.difficulty-panel__controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  align-items: end;
+}
+
+.difficulty-panel__controls label {
+  min-width: 0;
+}
+
+.difficulty-panel__tips {
+  color: #bfdbfe;
+  font-size: 12px;
+}
+
+.difficulty-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.segment-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.segment-config-row {
+  display: grid;
+  grid-template-columns: minmax(86px, 120px) repeat(2, minmax(160px, 1fr));
+  gap: 8px;
+  align-items: end;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.56);
+  padding: 10px;
+}
+
+.segment-config-row label {
+  min-width: 0;
+}
+
+.segment-config__range {
+  color: #bfdbfe;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  align-self: center;
+}
+
+.segment-config__resolved {
+  color: #93c5fd;
+  font-size: 12px;
+}
+
+.difficulty-group {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.difficulty-group h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #bfdbfe;
+}
+
+.difficulty-group__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.difficulty-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .toolbar__head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar__actions {
+    justify-content: flex-start;
+  }
+
+  .difficulty-panel__controls,
+  .difficulty-group__grid,
+  .segment-config-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .toolbar__tips {
@@ -73,9 +224,17 @@ body {
   color: #cbd5e1;
 }
 
+#templateStatus {
+  color: #93c5fd;
+}
+
 .scroll-range {
   width: 100%;
   margin-top: 10px;
+}
+
+.template-support {
+  display: none;
 }
 
 .stats {
@@ -89,6 +248,18 @@ body {
   border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 10px;
   padding: 8px 10px;
+}
+
+.stat-card--action {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.stat-card--action:hover,
+.stat-card--action:focus-visible {
+  border-color: rgba(147, 197, 253, 0.78);
+  background: rgba(37, 99, 235, 0.2);
+  outline: none;
 }
 
 .stat-card__label {

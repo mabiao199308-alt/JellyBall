@@ -11,7 +11,7 @@
 
 本次重构目标：**从散文件脚本改为 TypeScript + Vite 工程化结构**，便于后续玩法扩展、资源管理与移动端打包。
 
-当前状态：`src/main.ts / src/ball_visual.ts / src/death_fx.ts / src/jelly_preview.ts / src/map_preview.ts` 已全部通过 TS 检查（不再依赖 `@ts-nocheck`）。
+当前状态：`src/main.ts / src/ball_visual.ts / src/death_fx.ts / src/jelly_preview.ts / src/map_editor/index.ts` 已全部通过 TS 检查（不再依赖 `@ts-nocheck`）。
 
 ---
 
@@ -27,6 +27,7 @@ swipe_2/
 │   │   ├── ball_visual.ts     # 果冻球视觉模块（原 ball_visual.js）
 │   │   ├── death_fx.ts        # 死亡特效默认参数模块（原 death_fx.js）
 │   │   ├── config/
+│   │   │   ├── hazard_defaults.ts # 游戏与地图编辑器共用障碍默认配置
 │   │   │   └── storage_keys.ts # 本地存储键与本地保存接口常量
 │   │   ├── systems/
 │   │   │   ├── camera.ts       # 相机跟随计算逻辑
@@ -41,10 +42,12 @@ swipe_2/
 │   │   │   ├── storage.ts      # 安全读写 localStorage 工具
 │   │   │   └── update_loop.ts  # 主更新循环调度器
 │   │   ├── jelly_preview.ts   # 果冻预览页逻辑
-│   │   └── map_preview.ts     # 地图预览页逻辑
+│   │   └── map_editor/
+│   │       └── index.ts       # 地图预览页逻辑
 │   ├── index.html             # 主游戏页
 │   ├── jelly_preview.html     # 果冻可视化调参页
-│   ├── map_preview.html       # 地图生成预览页
+│   ├── map_preview.html       # 地图关卡编辑器页
+│   ├── template_library.html  # 地图模版库生成与导出页
 │   ├── style.css              # 主游戏样式
 │   ├── jelly_preview.css      # 果冻预览样式
 │   ├── map_preview.css        # 地图预览样式
@@ -116,7 +119,7 @@ npm run dev
 - LocalStorage keys（主配置/果冻/障碍/最高分/引导状态）
 - 本地默认值写回接口地址常量
 
-这样可以避免 `main.ts / map_preview.ts / jelly_preview.ts` 重复定义同一组键名。
+这样可以避免 `main.ts / map_editor/index.ts / jelly_preview.ts` 重复定义同一组键名。
 
 ### `web/src/systems/camera.ts`
 
@@ -234,9 +237,22 @@ npm run dev
 
 用于独立调果冻视觉与图层显示，便于美术/程序快速验证观感。
 
-### `web/src/map_preview.ts`
+### `web/src/map_editor/index.ts`
 
 用于独立预览地图/障碍生成分布，快速查看不同米数区间下的密度与可达性。
+
+同时支持“地图模版库”导出：
+
+- 以 `50m` 为单位批量生成随机模版
+- 按当前地图编辑器难度配置生成锚点与障碍
+- 在编辑器内一键保存为 JSON 文件，便于版本化与后续关卡复用
+
+对应页面已拆分为两个入口：
+
+- `map_preview.html`：地图关卡编辑器
+- `template_library.html`：地图模版库（50m 单位）生成与导出
+
+模板库页为精简模式，仅保留：难度配置、难度选择、随机生成、保存 JSON 四项操作。
 
 ### `web/dev_server.py`
 

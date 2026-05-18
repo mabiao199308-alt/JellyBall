@@ -12,6 +12,23 @@
         <div class="hud">
           <div class="hud-meter" id="meterDisplay">高度：0米</div>
         </div>
+        <div class="start-menu-overlay" id="startMenuOverlay" aria-label="开始菜单">
+          <div class="start-menu-card">
+            <h1 class="start-menu-title">皮筋弹射球</h1>
+            <p class="start-menu-subtitle">选择游玩方式</p>
+            <div class="start-menu-actions" id="startMenuActions">
+              <button class="start-menu-btn" id="selectLevelBtn" type="button">选择关卡</button>
+              <button class="start-menu-btn start-menu-btn--random" id="randomStartBtn" type="button">随机开始</button>
+            </div>
+            <div class="start-level-panel is-hidden" id="levelSelectPanel" aria-label="关卡选择">
+              <div class="start-level-panel__header">
+                <span>选择关卡</span>
+                <button class="start-level-back" id="levelSelectBackBtn" type="button">返回</button>
+              </div>
+              <div class="start-level-grid" id="levelSelectGrid"></div>
+            </div>
+          </div>
+        </div>
         <div class="tutorial-overlay is-hidden" id="tutorialOverlay" aria-hidden="true">
           <div class="tutorial-overlay__text">拉动果冻，松手发射！</div>
           <div class="tutorial-overlay__gesture">

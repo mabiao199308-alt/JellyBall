@@ -9,7 +9,13 @@
   <body>
     <main class="preview-page">
       <header class="toolbar">
-        <h1>随机地图预览</h1>
+        <div class="toolbar__head">
+          <h1>随机地图预览</h1>
+          <div class="toolbar__actions">
+            <a class="toolbar__switch-link" href="./template_library.html">进入模版库</a>
+            <button id="difficultyPanelBtn" type="button">难度配置</button>
+          </div>
+        </div>
         <div class="toolbar__controls">
           <label>
             目标米数
@@ -27,9 +33,21 @@
           <button id="nextScreenBtn" type="button">下一屏</button>
           <button id="generateBtn" type="button">生成预览</button>
           <button id="regenBtn" type="button">重随机</button>
+          <button id="saveMapBtn" type="button">保存JSON</button>
         </div>
+        <p class="toolbar__tips" id="mapSaveStatus"></p>
         <p class="toolbar__tips">说明：默认按 50m 视口显示（同宽度比例）。可用滑条 / 滚轮在整段地图中滚动查看。</p>
         <input id="scrollRange" class="scroll-range" type="range" min="0" max="0" step="0.1" value="0" />
+
+        <section id="difficultyPanel" class="difficulty-panel is-hidden" aria-hidden="true">
+          <div class="difficulty-panel__head">
+            <h2>难度配置</h2>
+            <button id="difficultyPanelCloseBtn" type="button">关闭</button>
+          </div>
+
+          <div class="difficulty-panel__tips">每 50m 可单独配置难度，并选择模板（随机模板、模板1、模板2...）。</div>
+          <div id="segmentConfigList" class="segment-config-list"></div>
+        </section>
       </header>
 
       <section class="stats" id="statsPanel"></section>
@@ -39,6 +57,6 @@
       </section>
     </main>
 
-    <script type="module" src="/src/map_preview.ts"></script>
+    <script type="module" src="/src/map_editor/index.ts"></script>
   </body>
 </html>

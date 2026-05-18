@@ -17,6 +17,7 @@ import {
   JELLY_LAYER_VISIBILITY_KEY,
   TUTORIAL_SEEN_STORAGE_KEY,
 } from "./config/storage_keys";
+import { defaultHazardCfg, hazardIntegerKeys } from "./config/hazard_defaults";
 import { updateCameraState } from "./systems/camera";
 import {
   buildJuicePalette as buildJuicePaletteRuntime,
@@ -60,6 +61,13 @@ const resetBtn = document.getElementById("resetBtn") as HTMLButtonElement | null
 const meterDisplayEl = document.getElementById("meterDisplay") as HTMLElement | null;
 const fpsDisplayEl = document.getElementById("fpsDisplay") as HTMLElement | null;
 const tutorialOverlay = document.getElementById("tutorialOverlay") as HTMLElement | null;
+const startMenuOverlay = document.getElementById("startMenuOverlay") as HTMLElement | null;
+const startMenuActions = document.getElementById("startMenuActions") as HTMLElement | null;
+const selectLevelBtn = document.getElementById("selectLevelBtn") as HTMLButtonElement | null;
+const randomStartBtn = document.getElementById("randomStartBtn") as HTMLButtonElement | null;
+const levelSelectPanel = document.getElementById("levelSelectPanel") as HTMLElement | null;
+const levelSelectBackBtn = document.getElementById("levelSelectBackBtn") as HTMLButtonElement | null;
+const levelSelectGrid = document.getElementById("levelSelectGrid") as HTMLElement | null;
 
 const debugPanelBody = mustEl<HTMLElement>("debugPanelBody");
 const debugPanel = mustEl<HTMLElement>("debugPanel");
@@ -91,6 +99,60 @@ const defaultCfgBtn = mustEl<HTMLButtonElement>("defaultCfgBtn");
 const cfgStatus = mustEl<HTMLElement>("cfgStatus");
 const deathFxCfgStatus = mustEl<HTMLElement>("deathFxCfgStatus");
 const clearDataBtn = mustEl<HTMLButtonElement>("clearDataBtn");
+
+type MapRuntimeConfig = {
+  activeDifficultyLevel?: string;
+  targetMeters?: number;
+  generatedAt?: string;
+};
+
+type MapLevelEntry = {
+  fileName: string;
+  importPath: string;
+  difficulty: string;
+  targetMeters: number | null;
+  generatedAt: string;
+  seed: number;
+};
+
+type RunStartMode = "pending" | "random" | "map";
+
+const mapModules = import.meta.glob("./config/maps/*.json", {
+  eager: true,
+  import: "default",
+}) as Record<string, MapRuntimeConfig>;
+
+function hashStringToSeed(input: string) {
+  let hash = 2166136261;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function createMapLevelEntries() {
+  return Object.entries(mapModules)
+    .map(([importPath, payload]) => {
+      const fileName = importPath.split("/").pop() || "unknown.json";
+      const difficulty = typeof payload?.activeDifficultyLevel === "string" ? payload.activeDifficultyLevel : "unknown";
+      const targetRaw = Number(payload?.targetMeters);
+      const targetMeters = Number.isFinite(targetRaw) && targetRaw > 0 ? Math.round(targetRaw) : null;
+      const generatedAt = typeof payload?.generatedAt === "string" ? payload.generatedAt : "";
+      const seedSource = `${fileName}|${generatedAt}|${difficulty}|${targetMeters ?? "x"}`;
+      return {
+        fileName,
+        importPath,
+        difficulty,
+        targetMeters,
+        generatedAt,
+        seed: hashStringToSeed(seedSource),
+      } as MapLevelEntry;
+    })
+    .sort((a, b) => a.fileName.localeCompare(b.fileName, "zh-Hans-CN"));
+}
+
+const mapLevelEntries = createMapLevelEntries();
 
 function isLocalDevHost() {
   const host = (window.location.hostname || "").toLowerCase();
@@ -195,22 +257,6 @@ const TRACK_GEAR_UNLOCK_METERS = 100;
 const TRACK_GEAR_SPAWN_RATIO = 0.4;
 const HAZARD_DENSITY_START_METERS = 80;
 const HAZARD_DENSITY_FULL_METERS = 260;
-const defaultHazardCfg = {
-  baseTrackUnlockMeters: 22,
-  gearUnlockMeters: 47,
-  damageTrackUnlockMeters: 80,
-  baseTrackSlotInterval: 3,
-  baseTrackSpawnChance: 0.52,
-  baseTrackSpawnChanceMax: 0.86,
-  damageTrackSlotInterval: 4,
-  damageTrackSpawnChance: 0.4,
-  damageTrackSpawnChanceMax: 0.74,
-  gearSlotInterval: 3,
-  gearSpawnChance: 0.55,
-  gearSpawnChanceMax: 0.85,
-  hazardDensityStartMeters: 80,
-  hazardDensityFullMeters: 260,
-};
 const RED_ANCHOR_BLINK_DELAY = 0.5;
 const RED_ANCHOR_VANISH_DELAY = 3;
 const RED_ANCHOR_RESPAWN_DELAY = 2;
@@ -358,17 +404,6 @@ const hazardParamDefs = [
   { key: "hazardDensityStartMeters", label: "增密起始米数", min: 0, max: 320, step: 1 },
   { key: "hazardDensityFullMeters", label: "增密满值米数", min: 10, max: 500, step: 1 },
 ];
-const hazardIntegerKeys = new Set([
-  "baseTrackUnlockMeters",
-  "gearUnlockMeters",
-  "damageTrackUnlockMeters",
-  "baseTrackSlotInterval",
-  "damageTrackSlotInterval",
-  "gearSlotInterval",
-  "hazardDensityStartMeters",
-  "hazardDensityFullMeters",
-]);
-
 applyCfgDefaultOverrideFromStorage();
 applyHazardDefaultOverrideFromStorage();
 
@@ -397,6 +432,10 @@ let deathPopMasterGain = null;
 let deathPopAudioBuffer = null;
 let deathPopAudioLoadStarted = false;
 let deathPopLastPlaySec = -999;
+let runStartMode: RunStartMode = "pending";
+let selectedMapIndex = 0;
+let levelSelectButtons: HTMLButtonElement[] = [];
+let currentRandomSource: () => number = Math.random;
 
 normalizeDeathFxCfg();
 loadHazardCfgFromStorage();
@@ -809,7 +848,118 @@ function clearAllSavedData() {
   safeRemoveKeys(keys);
 }
 
+function createSeededRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+    mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed);
+    return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function clampSelectableMapIndex(index: number) {
+  const maxIndex = Math.max(0, mapLevelEntries.length - 1);
+  const normalized = Math.floor(Number(index) || 0);
+  return Math.max(0, Math.min(maxIndex, normalized));
+}
+
+function getSelectedMapEntry() {
+  if (!mapLevelEntries.length) return null;
+  return mapLevelEntries[clampSelectableMapIndex(selectedMapIndex)] || null;
+}
+
+function isRunStarted() {
+  return runStartMode !== "pending";
+}
+
+function resetRunRandomSource() {
+  if (runStartMode === "map") {
+    const selectedMap = getSelectedMapEntry();
+    currentRandomSource = createSeededRandom(selectedMap?.seed ?? 0);
+    return;
+  }
+  currentRandomSource = Math.random;
+}
+
+function markSelectedLevelButton(index: number) {
+  const safeIndex = clampSelectableMapIndex(index);
+  for (const button of levelSelectButtons) {
+    const value = Number(button.dataset.mapIndex || -1);
+    button.classList.toggle("is-selected", value === safeIndex);
+  }
+}
+
+function buildLevelSelectGrid() {
+  if (!levelSelectGrid) return;
+  levelSelectGrid.innerHTML = "";
+  levelSelectButtons = [];
+
+  if (!mapLevelEntries.length) {
+    const empty = document.createElement("p");
+    empty.className = "start-level-empty";
+    empty.textContent = "暂无关卡文件，请先导出 map json。";
+    levelSelectGrid.appendChild(empty);
+    return;
+  }
+
+  for (let i = 0; i < mapLevelEntries.length; i += 1) {
+    const entry = mapLevelEntries[i];
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "start-level-btn";
+    btn.dataset.mapIndex = String(i);
+    btn.textContent = String(i + 1);
+    const meterText = Number.isFinite(entry.targetMeters) ? `${entry.targetMeters}m` : "未知米数";
+    btn.title = `${entry.fileName} (${entry.difficulty}, ${meterText})`;
+    btn.addEventListener("click", () => {
+      startRunWithSelectedLevel(i);
+    });
+    levelSelectGrid.appendChild(btn);
+    levelSelectButtons.push(btn);
+  }
+}
+
+function showLevelSelectPanel(visible: boolean) {
+  if (!levelSelectPanel || !startMenuActions) return;
+  levelSelectPanel.classList.toggle("is-hidden", !visible);
+  startMenuActions.classList.toggle("is-hidden", visible);
+}
+
+function syncStartMenuVisibility() {
+  if (startMenuOverlay) {
+    startMenuOverlay.classList.toggle("is-hidden", isRunStarted());
+  }
+  if (!isRunStarted()) {
+    markSelectedLevelButton(selectedMapIndex);
+    showLevelSelectPanel(false);
+  }
+}
+
+function startRunWithRandomMode() {
+  runStartMode = "random";
+  resetRun();
+  syncStartMenuVisibility();
+  syncTutorialOverlay();
+  setStatus("已开始随机模式。");
+}
+
+function startRunWithSelectedLevel(level: number) {
+  if (!mapLevelEntries.length) {
+    setStatus("当前没有可选关卡文件，请先在地图编辑器导出地图。");
+    return;
+  }
+  selectedMapIndex = clampSelectableMapIndex(level);
+  const selectedMap = getSelectedMapEntry();
+  runStartMode = "map";
+  resetRun();
+  syncStartMenuVisibility();
+  syncTutorialOverlay();
+  setStatus(`已开始关卡 ${selectedMapIndex + 1}：${selectedMap?.fileName || "未知关卡"}`);
+}
+
 function shouldShowTutorialOverlay() {
+  if (!isRunStarted()) return false;
   if (tutorialSeen) return false;
   if (!world.activeAnchor) return false;
   if (world.state !== "aiming") return false;
@@ -1124,7 +1274,7 @@ function onCfgChanged(key) {
 }
 
 function rand(min, max) {
-  return min + Math.random() * (max - min);
+  return min + currentRandomSource() * (max - min);
 }
 
 function clamp01(v) {
@@ -1349,7 +1499,7 @@ function createAnchor(
   const id = useFixedId ? options.id : world.anchorIdSeed++;
   if (id >= world.anchorIdSeed) world.anchorIdSeed = id + 1;
   const shouldForceBlue = !options.ignoreEarlyBlueRule && world.anchorSpawnCount < FIRST_BLUE_ANCHOR_COUNT;
-  const isRed = typeof options.isRed === "boolean" ? options.isRed : (shouldForceBlue ? false : Math.random() < getDynamicRedAnchorChance());
+  const isRed = typeof options.isRed === "boolean" ? options.isRed : (shouldForceBlue ? false : currentRandomSource() < getDynamicRedAnchorChance());
   return {
     id,
     x,
@@ -1521,7 +1671,7 @@ function shouldSpawnBaseTrackOnNextSlot(slotMeters = world.runMeters) {
   const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.baseTrackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
   const dynamicChance = lerp(hazardCfg.baseTrackSpawnChance, hazardCfg.baseTrackSpawnChanceMax, densityT);
   if (world.baseTrackSlotsSinceSpawn < dynamicInterval) return false;
-  return Math.random() < dynamicChance;
+  return currentRandomSource() < dynamicChance;
 }
 
 function shouldSpawnDamageTrackOnNextSlot(slotMeters = world.runMeters) {
@@ -1532,7 +1682,7 @@ function shouldSpawnDamageTrackOnNextSlot(slotMeters = world.runMeters) {
   const dynamicInterval = Math.max(TRACK_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.damageTrackSlotInterval, TRACK_SLOT_INTERVAL_MIN, densityT)));
   const dynamicChance = lerp(hazardCfg.damageTrackSpawnChance, hazardCfg.damageTrackSpawnChanceMax, densityT);
   if (world.damageTrackSlotsSinceSpawn < dynamicInterval) return false;
-  return Math.random() < dynamicChance;
+  return currentRandomSource() < dynamicChance;
 }
 
 function canSpawnGearFromGenerator(slotMeters = world.runMeters) {
@@ -1550,7 +1700,7 @@ function shouldSpawnGearOnNextSlot(slotMeters = world.runMeters) {
   const dynamicInterval = Math.max(GEAR_SLOT_INTERVAL_MIN, Math.round(lerp(hazardCfg.gearSlotInterval, GEAR_SLOT_INTERVAL_MIN, densityT)));
   const dynamicChance = lerp(hazardCfg.gearSpawnChance, hazardCfg.gearSpawnChanceMax, densityT);
   if (world.gearSlotsSinceSpawn < dynamicInterval) return false;
-  return Math.random() < dynamicChance;
+  return currentRandomSource() < dynamicChance;
 }
 
 function createInitialAnchors() {
@@ -1585,13 +1735,13 @@ function createGearHazard(x, y) {
     innerRadius: radius * 0.42,
     toothDepth: Math.max(8, radius * 0.24),
     angle: rand(0, Math.PI * 2),
-    spinDir: Math.random() < 0.5 ? -1 : 1,
+    spinDir: currentRandomSource() < 0.5 ? -1 : 1,
   };
 }
 
 function spawnGearAtY(y) {
   if (!GEAR_ENABLED) return false;
-  const side = Math.random() < 0.5 ? -1 : 1;
+  const side = currentRandomSource() < 0.5 ? -1 : 1;
   const pad = cfg.anchorSidePadding + 22;
   const leftX = clamp(world.w * rand(0.2, 0.36), pad, world.w - pad);
   const rightX = clamp(world.w * rand(0.64, 0.8), pad, world.w - pad);
@@ -1656,14 +1806,14 @@ function createMovingTrack() {
     travelHalf,
     mode: "pin", // pin | gear
     pinOffset: 0,
-    pinDir: Math.random() < 0.5 ? -1 : 1,
+    pinDir: currentRandomSource() < 0.5 ? -1 : 1,
     pinSpeed: TRACK_PIN_SPEED,
     pinRadius,
     hiddenUntilSec: 0,
     wasPinVisible: true,
     activated: false,
     pinAnchor: createAnchor(pinX, world.h * 0.75 - yOffset, pinRadius, {
-      isRed: Math.random() < getDynamicRedAnchorChance(),
+      isRed: currentRandomSource() < getDynamicRedAnchorChance(),
     }),
     trackGear: {
       x: pinX,
@@ -1672,7 +1822,7 @@ function createMovingTrack() {
       innerRadius: gearRadius * 0.42,
       toothDepth: Math.max(6, gearRadius * 0.24),
       angle: rand(0, Math.PI * 2),
-      spinDir: Math.random() < 0.5 ? -1 : 1,
+      spinDir: currentRandomSource() < 0.5 ? -1 : 1,
     },
   };
 }
@@ -1691,7 +1841,7 @@ function spawnMovingTrackAtY(track, y, mode = "pin") {
   world.trackLaneCursor += 1;
   track.y = y;
   track.pinOffset = 0;
-  track.pinDir = Math.random() < 0.5 ? -1 : 1;
+  track.pinDir = currentRandomSource() < 0.5 ? -1 : 1;
 
   const pinX = track.x;
   if (track.pinAnchor) {
@@ -1705,7 +1855,7 @@ function spawnMovingTrackAtY(track, y, mode = "pin") {
 
   if (mode === "pin") {
     if (track.pinAnchor) {
-      track.pinAnchor.isRed = Math.random() < getDynamicRedAnchorChance();
+      track.pinAnchor.isRed = currentRandomSource() < getDynamicRedAnchorChance();
       if (track.pinAnchor.isRed) triggerRedAnchorSpawnAnim(track.pinAnchor);
     }
     track.hiddenUntilSec = world.timeSec;
@@ -1719,7 +1869,7 @@ function spawnMovingTrackAtY(track, y, mode = "pin") {
     track.trackGear.x = pinX;
     track.trackGear.y = track.y;
     track.trackGear.angle = rand(0, Math.PI * 2);
-    track.trackGear.spinDir = Math.random() < 0.5 ? -1 : 1;
+    track.trackGear.spinDir = currentRandomSource() < 0.5 ? -1 : 1;
   }
 }
 
@@ -1760,6 +1910,7 @@ function addGeneratedSlotAbove() {
 }
 
 function resetRun() {
+  resetRunRandomSource();
   world.movingTrack = createMovingTrack();
   world.trackLaneCursor = randInt(0, ANCHOR_X_RATIOS.length - 1);
   world.baseTrackSlotsSinceSpawn = 0;
@@ -2067,6 +2218,7 @@ function reviveFromGameOver() {
 }
 
 function onPointerDown(e) {
+  if (!isRunStarted()) return;
   ensureAudioReady();
   if (world.state === "gameover") {
     resetRun();
@@ -2116,6 +2268,8 @@ function onKeyDown(e) {
     document.body.classList.toggle("hide-dev-controls");
     return;
   }
+
+  if (!isRunStarted()) return;
 
   if (world.state !== "gameover") return;
   if (e.code !== "KeyR") return;
@@ -3407,6 +3561,7 @@ buildDebugPanel();
 buildDeathFxDebugPanel();
 buildJellyDebugPanel();
 buildHazardDebugPanel();
+buildLevelSelectGrid();
 syncPanelFromCfg();
 syncDeathFxPanelFromCfg();
 syncJellyPanelFromCfg();
@@ -3417,6 +3572,7 @@ syncDebugPanelVisibility();
 syncDeathFxPanelVisibility();
 syncJellyPanelVisibility();
 syncHazardPanelVisibility();
+syncStartMenuVisibility();
 
 if (debugToggleBtn) {
   debugToggleBtn.addEventListener("click", () => {
@@ -3580,6 +3736,24 @@ if (clearDataBtn) {
     clearAllSavedData();
     setStatus("已清除本地数据，正在重置…");
     window.location.reload();
+  });
+}
+
+if (selectLevelBtn) {
+  selectLevelBtn.addEventListener("click", () => {
+    showLevelSelectPanel(true);
+  });
+}
+
+if (levelSelectBackBtn) {
+  levelSelectBackBtn.addEventListener("click", () => {
+    showLevelSelectPanel(false);
+  });
+}
+
+if (randomStartBtn) {
+  randomStartBtn.addEventListener("click", () => {
+    startRunWithRandomMode();
   });
 }
 
